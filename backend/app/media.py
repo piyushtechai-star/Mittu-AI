@@ -37,6 +37,8 @@ def _bucket():
 
 
 def save_voice(path: str, audio: bytes) -> None:
+    if not isinstance(audio, bytes):   # same rule as Cloud Storage, so local runs and tests catch it too
+        raise TypeError("voice clip must be bytes")
     if _local():
         _memory[path] = audio
         return

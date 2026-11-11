@@ -219,7 +219,7 @@ def test_gemini_voice_falls_back_to_cloud_tts(monkeypatch):
 def test_mp3_encoder_makes_real_mp3():
     from app import tts
     mp3 = tts._mp3(bytes(2) * tts.GEMINI_RATE)        # one second of silence
-    assert len(mp3) > 1000 and (mp3[:3] == b"ID3" or mp3[0] == 0xFF)
+    assert type(mp3) is bytes and len(mp3) > 1000 and (mp3[:3] == b"ID3" or mp3[0] == 0xFF)
 
 
 def test_voice_parts_split_at_sentences_and_keep_every_word():

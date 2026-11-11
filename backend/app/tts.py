@@ -73,7 +73,7 @@ def _mp3(pcm: bytes, rate: int = GEMINI_RATE, speed: float = 1.0) -> bytes:
     enc.set_in_sample_rate(int(rate * speed))
     enc.set_channels(1)
     enc.set_quality(2)
-    return enc.encode(pcm) + enc.flush()
+    return bytes(enc.encode(pcm) + enc.flush())   # lameenc gives a bytearray; Cloud Storage needs bytes
 
 
 PARTS = 4                       # a reading is voiced in 4 parts at once: much faster than one long request
