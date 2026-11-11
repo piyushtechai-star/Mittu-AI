@@ -33,9 +33,35 @@ def client():
                         http_options=types.HttpOptions(timeout=30_000))
 
 
+_DEVANAGARI = re.compile(r"[ऀ-ॿ]")
+_HINGLISH = re.compile(r"\b(?:kya|kab|kaise|kaisa|kaisi|kyun|kyu|mera|meri|mere|mujhe|hai|hain|hoga|hogi|hoge|ki|ka|ke|ko|"
+                       r"se|mein|me|aur|nahi|nhi|karna|karu|karun|chahiye|milega|milegi|rahega|rahegi|apna|apni|kuch|"
+                       r"bhi|tak|wala|wali|ho|jayega|jayegi|sakta|sakti|abhi|aaj|kal|saal)\b", re.I)
+_ENGLISH = re.compile(r"\b(?:will|would|should|can|could|my|me|i|the|is|are|what|when|how|why|this|year|get|find|my|do|does)\b", re.I)
+
+
+def question_language(question: str) -> str:
+    """"hindi" (Devanagari only), "english" (plain English), else "hinglish". The prompt asks Mittu to match pure
+    Hindi or English; testing showed the model needs the language named explicitly to do so."""
+    q = question or ""
+    if _DEVANAGARI.search(q) and not re.search(r"[A-Za-z]", q):
+        return "hindi"
+    if q and not _HINGLISH.search(q) and len(_ENGLISH.findall(q)) >= 2:
+        return "english"
+    return "hinglish"
+
+
+LANGUAGE_LINE = {
+    "hindi": "The user wrote in pure Hindi: reply in simple Hindi, in Devanagari script.",
+    "english": "The user wrote in English: reply in simple English (a light parrot touch like \"Kuurr!\" is fine).",
+    "hinglish": "Reply in simple Hinglish (Roman script).",
+}
+
+
 def _user_message(card_id: int, orientation: str, name: str, category: str, question: str) -> str:
     _, en, hi_roman, _ = CARDS[card_id]
-    return (f"Card: {en} ({hi_roman})\n"
+    return (f"{LANGUAGE_LINE[question_language(question)]}\n"
+            f"Card: {en} ({hi_roman})\n"
             f"Orientation: {orientation}\n"
             f"Category: {CATEGORY_LABELS.get(category, CATEGORY_LABELS['general'])}\n"
             f"<name>{name or 'not given'}</name>\n"

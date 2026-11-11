@@ -47,6 +47,14 @@ def ssml_with_marks(text: str) -> tuple[str, list[str]]:
 
 def _cloud_tts(text: str) -> tuple[bytes, list[float] | None, str]:
     from google.cloud import texttospeech_v1beta1 as tts
+    if "Chirp3" in settings.TTS_CLOUD_VOICE:
+        # Chirp 3 HD: natural voice from the same family as Gemini's (e.g. Puck), large quota, never repeats lines.
+        # No pitch or SSML marks on these voices: the app spreads the subtitles over the clip.
+        response = _cloud_client().synthesize_speech(request=tts.SynthesizeSpeechRequest(
+            input=tts.SynthesisInput(text=text),
+            voice=tts.VoiceSelectionParams(language_code="hi-IN", name=settings.TTS_CLOUD_VOICE),
+            audio_config=tts.AudioConfig(audio_encoding=tts.AudioEncoding.MP3, speaking_rate=settings.TTS_RATE)), timeout=20)
+        return response.audio_content, None, "mp3"
     ssml, words = ssml_with_marks(text)
     request = tts.SynthesizeSpeechRequest(
         input=tts.SynthesisInput(ssml=ssml),
@@ -135,11 +143,32 @@ def _word_times(parts: list[str], starts: list[float], lengths: list[float]) -> 
     return times
 
 
+REPEAT_RATIO = 1.35   # a part this much slower per word than the others most likely repeats a sentence
+
+
+def suspect_repeats(parts: list[str], seconds: list[float]) -> list[int]:
+    """Gemini TTS now and then says a sentence twice. Such a part takes far longer per word than the reading's other
+    parts, so it is flagged for a remake. Short parts (under 8 words, e.g. the slow "Lucky color..." ending) are skipped."""
+    per_word = [s / max(1, len(p.split())) for p, s in zip(parts, seconds)]
+    long_parts = sorted(r for p, r in zip(parts, per_word) if len(p.split()) >= 8)
+    if len(long_parts) < 2:
+        return []
+    typical = long_parts[(len(long_parts) - 1) // 2]   # lower middle: a repeating part can't raise it
+    return [i for i, (p, r) in enumerate(zip(parts, per_word)) if len(p.split()) >= 8 and r > typical * REPEAT_RATIO]
+
+
 def _gemini_tts(text: str) -> tuple[bytes, list[float], str]:
     from concurrent.futures import ThreadPoolExecutor
     parts = split_parts(text)
+    secs = lambda pcm: len(pcm) / 2 / GEMINI_RATE  # noqa: E731
     with ThreadPoolExecutor(max_workers=len(parts)) as pool:
         pcms = list(pool.map(_gemini_pcm, parts))   # any part failing raises → Cloud TTS fallback
+        redo = suspect_repeats(parts, [secs(p) for p in pcms]) if len(parts) > 1 else []
+        if redo:
+            log.warning("Gemini TTS: remaking part(s) %s (probably a repeated sentence)", redo)
+            for i, pcm in zip(redo, pool.map(lambda i: _gemini_pcm(parts[i]), redo)):
+                if secs(pcm) < secs(pcms[i]):   # keep the shorter take
+                    pcms[i] = pcm
     starts, lengths, pos = [], [], 0.0
     for pcm in pcms:   # seconds as heard, i.e. after the speed-up
         starts.append(pos)

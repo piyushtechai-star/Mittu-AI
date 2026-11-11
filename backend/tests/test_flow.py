@@ -230,3 +230,18 @@ def test_voice_parts_split_at_sentences_and_keep_every_word():
     assert 2 <= len(parts) <= tts.PARTS and " ".join(parts).split() == text.split()
     times = tts._word_times(parts, [5.0 * i for i in range(len(parts))], [4.0] * len(parts))
     assert len(times) == len(text.split()) and times == sorted(times)
+
+
+@pytest.mark.parametrize("q,lang", [
+    ("Will I clear my exam this year?", "english"), ("क्या मेरी शादी होगी?", "hindi"), ("Meri shaadi kab hogi?", "hinglish"),
+    ("Kya mujhe business karna chahiye?", "hinglish"), ("", "hinglish"), ("job?", "hinglish"),
+])
+def test_question_language(q, lang):
+    assert ai.question_language(q) == lang
+
+
+def test_repeated_sentence_part_is_flagged():
+    from app import tts
+    parts = ["one two three four five six seven eight nine ten", "a b c d e f g h i j", "k l m n o p q r s t", "lucky color peela"]
+    assert tts.suspect_repeats(parts, [5.0, 5.2, 8.5, 4.0]) == [2]      # part 2: 0.85 s/word vs ~0.5 → remake
+    assert tts.suspect_repeats(parts, [5.0, 5.2, 5.6, 4.0]) == []       # normal variation and a slow short ending
