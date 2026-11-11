@@ -1,0 +1,12 @@
+# Only the Dockerfile, requirements.txt and app/ are needed to build the image.
+.gcloudignore
+.git
+.venv/
+.env
+.env.*
+.pytest_cache/
+__pycache__/
+tests/
+firestore.indexes.json
+voice-bucket-lifecycle.json
+README.md

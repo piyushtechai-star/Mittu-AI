@@ -1,0 +1,347 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-night-950: #07071d;
+  --color-night-900: #0b0b2b;
+  --color-night-800: #1a1040;
+  --color-night-700: #261a5c;
+  --color-gold: #d4af37;
+  --color-gold-soft: #f3dc8a;
+  --color-saffron: #ff9933;
+  --color-emerald: #2ecc71;
+  --color-parchment: #f2e2bf;
+  --color-ink: #3b2414;
+  --font-display: 'Cinzel', 'Playfair Display', serif;
+  --font-sans: 'Poppins', system-ui, sans-serif;
+  --font-hindi: 'Tiro Devanagari Hindi', 'Noto Serif Devanagari', serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+:root {
+  --home-top: 52px;
+}
+@media (min-height: 740px) {
+  :root {
+    --home-top: 64px;
+  }
+}
+
+body {
+  margin: 0;
+  background: #0b0b2b;
+  color: #f6eedb;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/* ------------------------------------------------------------------ title shimmer */
+.title-shimmer {
+  background: linear-gradient(100deg, #a8801f 0%, #d4af37 25%, #fff3c4 45%, #d4af37 60%, #a8801f 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 4.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 18px rgba(212, 175, 55, 0.35));
+}
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  60%,
+  100% {
+    background-position: -50% 0;
+  }
+}
+
+/* ------------------------------------------------------------------ glow button */
+.glow-btn {
+  position: relative;
+  background: linear-gradient(180deg, #ffb45c 0%, #ff9933 45%, #e07a12 100%);
+  color: #2a1404;
+  box-shadow:
+    0 0 0 1px rgba(255, 220, 160, 0.6) inset,
+    0 8px 30px rgba(255, 153, 51, 0.45),
+    0 0 60px rgba(212, 175, 55, 0.25);
+  animation: btnGlow 2.8s ease-in-out infinite;
+}
+.glow-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  background-size: 250% 100%;
+  animation: shimmer 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes btnGlow {
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 220, 160, 0.7) inset,
+      0 8px 40px rgba(255, 153, 51, 0.65),
+      0 0 90px rgba(212, 175, 55, 0.4);
+  }
+}
+
+.glass {
+  background: linear-gradient(180deg, rgba(38, 26, 92, 0.55), rgba(16, 10, 48, 0.55));
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 240, 200, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.vignette {
+  background: radial-gradient(ellipse 120% 90% at 50% 45%, transparent 55%, rgba(3, 2, 15, 0.75) 100%);
+}
+
+/* ------------------------------------------------------------------ mandala */
+.mandala {
+  animation: spin 240s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------------ Mittu */
+.mittu .m-body,
+.mittu .m-head,
+.mittu .m-lid,
+.mittu .m-wing-near,
+.mittu .m-wing-far,
+.mittu .m-tail {
+  transform-box: view-box;
+}
+.mittu .m-body {
+  transform-origin: 84px 128px;
+  animation: breathe 3.4s ease-in-out infinite;
+}
+.mittu .m-head {
+  transform-origin: 96px 72px;
+  transition: transform 0.25s ease;
+}
+.mittu.mode-idle .m-head {
+  animation: headTilt 7.5s ease-in-out infinite;
+}
+.mittu.mode-talk .m-head {
+  animation: headBob 0.9s ease-in-out infinite;
+}
+.mittu.mode-pick .m-head {
+  transform: rotate(34deg) translate(2px, 4px);
+}
+.mittu .m-tail {
+  transform-origin: 80px 114px;
+}
+.mittu.mode-idle .m-tail {
+  animation: tailSway 5s ease-in-out infinite;
+}
+.mittu .m-lid {
+  transform-origin: 107px 35.5px;
+  transform: scaleY(0);
+  animation: blink 5.2s infinite;
+}
+.mittu .m-wing-near {
+  transform-origin: 80px 92px;
+  animation: flap 0.24s ease-in-out infinite;
+}
+.mittu .m-wing-far {
+  transform-origin: 84px 88px;
+  animation: flap 0.24s ease-in-out infinite;
+  animation-delay: -0.03s;
+}
+.mittu.mode-hover .m-wing-near,
+.mittu.mode-hover .m-wing-far {
+  animation-duration: 0.32s;
+}
+.mittu.mode-fly .m-tail,
+.mittu.mode-hover .m-tail,
+.mittu.mode-pick .m-tail {
+  transform: rotate(-14deg);
+}
+.mittu.still * {
+  animation: none !important;
+}
+
+@keyframes breathe {
+  50% {
+    transform: scale(1.025, 1.035);
+  }
+}
+@keyframes headTilt {
+  0%,
+  22%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30%,
+  44% {
+    transform: rotate(-11deg);
+  }
+  54%,
+  68% {
+    transform: rotate(7deg) translateY(-1px);
+  }
+  76% {
+    transform: rotate(0deg);
+  }
+}
+@keyframes headBob {
+  50% {
+    transform: rotate(-4deg) translateY(-1.5px);
+  }
+}
+@keyframes tailSway {
+  50% {
+    transform: rotate(3deg);
+  }
+}
+@keyframes blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(0);
+  }
+  95% {
+    transform: scaleY(1);
+  }
+}
+@keyframes flap {
+  0%,
+  100% {
+    transform: rotate(-12deg) scaleY(1);
+  }
+  50% {
+    transform: rotate(16deg) scaleY(-0.55);
+  }
+}
+
+.hover-bob {
+  animation: hoverBob 1.1s ease-in-out infinite;
+}
+@keyframes hoverBob {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* ------------------------------------------------------------------ cards */
+.card-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.card-glow {
+  box-shadow:
+    0 0 0 1px rgba(212, 175, 55, 0.5),
+    0 0 24px rgba(212, 175, 55, 0.35),
+    0 12px 30px rgba(0, 0, 0, 0.5);
+}
+.card-aura {
+  animation: aura 3s ease-in-out infinite;
+}
+@keyframes aura {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.04);
+  }
+}
+
+/* ------------------------------------------------------------------ parchment */
+.parchment {
+  color: var(--color-ink);
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(255, 255, 255, 0.35), transparent 50%),
+    radial-gradient(ellipse at 80% 90%, rgba(150, 100, 40, 0.18), transparent 55%),
+    radial-gradient(circle at 60% 40%, rgba(120, 80, 30, 0.08), transparent 30%),
+    linear-gradient(180deg, #f6e8c8 0%, #efdcb3 50%, #e7cf9e 100%);
+  box-shadow:
+    inset 0 0 40px rgba(120, 72, 20, 0.28),
+    0 -10px 40px rgba(0, 0, 0, 0.45);
+}
+.scroll-rod {
+  background: linear-gradient(180deg, #7a4a1c, #c58a3d 40%, #6b3e14);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+}
+.scroll-rod::before,
+.scroll-rod::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background: radial-gradient(circle at 35% 35%, #fff0b8, #d4af37 50%, #8a6a12);
+}
+.scroll-rod::before {
+  left: -8px;
+}
+.scroll-rod::after {
+  right: -8px;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.bell-swing {
+  transform-origin: 50% 0;
+  animation: bellSwing 3.6s ease-in-out infinite;
+}
+@keyframes bellSwing {
+  0%,
+  100% {
+    transform: rotate(6deg);
+  }
+  50% {
+    transform: rotate(-6deg);
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, rgba(59, 36, 20, 0.08), rgba(59, 36, 20, 0.2), rgba(59, 36, 20, 0.08));
+  background-size: 200% 100%;
+  animation: skel 1.4s linear infinite;
+}
+@keyframes skel {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mandala,
+  .title-shimmer,
+  .glow-btn,
+  .glow-btn::after,
+  .card-aura,
+  .bell-swing,
+  .hover-bob,
+  .mittu .m-head,
+  .mittu .m-tail,
+  .mittu .m-body {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+!.env.example
+backend/.venv/
+__pycache__/
+.pytest_cache/
+mobile/dist/
+mobile/.expo/
+mobile/expo-env.d.ts
+prototype-web/dist/
+.claude/settings.local.json
