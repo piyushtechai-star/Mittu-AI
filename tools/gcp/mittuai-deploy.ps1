@@ -10,7 +10,9 @@ $envVars = @(
   'FIRESTORE_DATABASE=mittuai', 'VERTEX_LOCATION=global', 'GEMINI_MODEL=gemini-3.8-flash',
   'TTS_VOICE=hi-IN-Neural2-A', 'TTS_PITCH=6.0', 'TTS_RATE=1.1', 'VOICE_BUCKET=mittuai-voice',
   'READINGS_PER_DAY=5', 'PLAN_NAME=mittuai_99', 'TRIAL_PRICE_PAISE=100', 'TRIAL_DAYS=3', 'PRICE_PAISE=9900',
-  'INVOICE_APP_CODE=MIT', 'WEB_ORIGINS=https://mittuai-web-319635525745.asia-south1.run.app'
+  'INVOICE_APP_CODE=MIT',
+  # Cloud Run serves the web app on two URLs; both must be allowed (a value with a comma needs the ^|^ delimiter below).
+  'WEB_ORIGINS=https://mittuai-web-319635525745.asia-south1.run.app,https://mittuai-web-rhwkepqcsa-el.a.run.app'
 )
 $kv = @{}
 $envFile = Join-Path $backend '.env'
@@ -26,7 +28,7 @@ if (-not ($secrets -match '^MITTUAI_JWT_SECRET=')) { throw 'Run mittuai-secrets.
 & $g run deploy mittuai-api --source $backend --project $P --region $R `
   --service-account "mittuai-api@$P.iam.gserviceaccount.com" `
   --allow-unauthenticated --cpu-throttling --min-instances 0 --max-instances 5 --concurrency 40 --memory 512Mi `
-  --labels app=mittuai --set-env-vars ($envVars -join ',') --set-secrets ($secrets -join ',') --quiet
+  --labels app=mittuai --set-env-vars ('^|^' + ($envVars -join '|')) --set-secrets ($secrets -join ',') --quiet
 Write-Host '== Deployed. URL:'
 & $g run services describe mittuai-api --project $P --region $R --format 'value(status.url)'
 Write-Host "== Mounted secrets: $(($secrets | ForEach-Object { $_.Split('=')[0] }) -join ', ')"
