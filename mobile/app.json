@@ -23,7 +23,17 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.RECORD_AUDIO"
+      ],
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {
@@ -68,7 +78,19 @@
       "reactCompiler": true
     },
     "extra": {
-      "metaEnabled": false
+      "metaEnabled": false,
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "4e18275d-40ef-4798-9e78-73c87e93c12c"
+      }
+    },
+    "owner": "piyushhtechai",
+    "updates": {
+      "url": "https://u.expo.dev/4e18275d-40ef-4798-9e78-73c87e93c12c"
     }
   }
 }
