@@ -47,7 +47,7 @@ shows), and a low-end Android phone (smooth animation, voice and beak in sync, a
 3. Subscription check (402), then today's limit (429; `READINGS_PER_DAY`, served by `/config`).
 4. The backend picks the card and orientation. The app can't influence them.
 5. Gemini writes the reading (output capped; the reading is given back if Gemini fails).
-6. Cloud TTS gives Mittu's voice and per-word timings.
+6. Gemini TTS performs Mittu's voice (4 parts in parallel, Cloud TTS as backup) with word timings for the subtitles.
 7. The clip goes to the private bucket, the reading is saved to `readings/{id}`, and the response is `{card, orientation, text, audio_url, word_times}`.
 
 ## Security
