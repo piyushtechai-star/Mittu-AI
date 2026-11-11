@@ -199,3 +199,34 @@ def test_production_refuses_test_settings():
 ])
 def test_clean(text, expected):
     assert ai.clean(text) == expected
+
+
+def test_production_accepts_gemini_voice():
+    code = ("import os; os.environ.update(STORE='firestore', MITTUAI_JWT_SECRET='x'*40, OTP_MODE='sms', BILLING_MODE='razorpay', "
+            "AI_PROVIDER='vertex', TTS_PROVIDER='gemini'); import app.settings; print('ok')")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=str(__import__("pathlib").Path(__file__).parent.parent))
+    assert r.returncode == 0 and "ok" in r.stdout, r.stderr
+
+
+def test_gemini_voice_falls_back_to_cloud_tts(monkeypatch):
+    from app import tts
+    monkeypatch.setattr(settings, "TTS_PROVIDER", "gemini")
+    monkeypatch.setattr(tts, "_gemini_tts", lambda text: (_ for _ in ()).throw(RuntimeError("gemini down")))
+    monkeypatch.setattr(tts, "_cloud_tts", lambda text: (b"ID3cloud", [0.0], "mp3"))
+    assert tts.synthesise("Kuurr suno") == (b"ID3cloud", [0.0], "mp3")
+
+
+def test_mp3_encoder_makes_real_mp3():
+    from app import tts
+    mp3 = tts._mp3(bytes(2) * tts.GEMINI_RATE)        # one second of silence
+    assert len(mp3) > 1000 and (mp3[:3] == b"ID3" or mp3[0] == 0xFF)
+
+
+def test_voice_parts_split_at_sentences_and_keep_every_word():
+    from app import tts
+    text = ("Kuurr! Suno suno... Mittu ne Taara ka card nikaala hai! Yeh umeed ka sanket hai. Career mein nayi job ki "
+            "sambhavna hai. Resume update karo. Lucky color, peela... lucky number, saat!")
+    parts = tts.split_parts(text)
+    assert 2 <= len(parts) <= tts.PARTS and " ".join(parts).split() == text.split()
+    times = tts._word_times(parts, [5.0 * i for i in range(len(parts))], [4.0] * len(parts))
+    assert len(times) == len(text.split()) and times == sorted(times)

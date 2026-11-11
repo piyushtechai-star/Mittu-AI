@@ -8,7 +8,9 @@ $backend = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) '..\..\ba
 # Prices, plan and the daily limit live here (served by /config), so they change without a new app build.
 $envVars = @(
   'FIRESTORE_DATABASE=mittuai', 'VERTEX_LOCATION=global', 'GEMINI_MODEL=gemini-3.8-flash',
-  'TTS_VOICE=hi-IN-Neural2-A', 'TTS_PITCH=6.0', 'TTS_RATE=1.1', 'VOICE_BUCKET=mittuai-voice',
+  # Mittu's voice: Gemini TTS acting the parrot (voice Puck); Cloud TTS Neural2-A at pitch +6 is the automatic backup.
+  'TTS_PROVIDER=gemini', 'TTS_MODEL=gemini-2.5-flash-tts', 'TTS_VOICE=Puck',
+  'TTS_CLOUD_VOICE=hi-IN-Neural2-A', 'TTS_PITCH=6.0', 'TTS_RATE=1.1', 'VOICE_BUCKET=mittuai-voice',
   'READINGS_PER_DAY=5', 'PLAN_NAME=mittuai_99', 'TRIAL_PRICE_PAISE=100', 'TRIAL_DAYS=3', 'PRICE_PAISE=9900',
   'INVOICE_APP_CODE=MIT',
   # Cloud Run serves the web app on two URLs; both must be allowed (a value with a comma needs the ^|^ delimiter below).

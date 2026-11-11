@@ -13,7 +13,7 @@ app/invoices.py    GST invoices HOT/<FY>/MIT/000001 (numbered in a transaction, 
 app/reading.py     POST /reading, GET /readings, GET /readings/{id}, POST /report
 app/safety.py      free checks: self-harm → helplines, off-topic / prompt tricks → fixed reply
 app/ai.py          Gemini on Vertex AI (Mittu's system prompt in app/prompts.py)
-app/tts.py         Cloud Text-to-Speech hi-IN, pitch +6, rate 1.1, SSML marks → word timings
+app/tts.py         Mittu's voice: Gemini TTS acting the parrot (4 parts in parallel, MP3, 1.1x), Cloud TTS as backup
 app/media.py       private bucket mittuai-voice, 1-hour signed URLs (IAM signBlob, no key file)
 app/cards.py       the 22 Major Arcana; the backend draws the card and orientation
 ```
@@ -54,12 +54,18 @@ Real Gemini / TTS from this PC (uses your gcloud login): set `AI_PROVIDER=vertex
 `GOOGLE_APPLICATION_CREDENTIALS=C:\Users\Piyush\tools\gcloud-config\application_default_credentials.json` and
 `GOOGLE_CLOUD_QUOTA_PROJECT=colorjoy-app` (Text-to-Speech needs a quota project with user credentials; Cloud Run doesn't).
 
-## Picking Mittu's voice (guide 07)
-Listen to `store/voice-samples/` (4 hi-IN voices at pitch +6, rate 1.1) and set `TTS_VOICE` / `TTS_PITCH` in
-`tools/gcp/mittuai-deploy.ps1`. No code change needed.
+## Mittu's voice
+Chosen 2026-11-12 after listening tests (`store/voice-samples/`): **Gemini TTS acts the reading as Mittu**
+(`gemini-2.5-flash-tts`, voice `Puck`, style instruction in `app/tts.py`). Much more natural than a pitched-up TTS voice.
+- The reading is split at sentence ends into up to 4 parts that are voiced at the same time (~10 s instead of ~25 s), joined
+  with short pauses, encoded to MP3 (64 kbps) and played 1.1x faster (guide 07 rate). A reading is ~30 s of audio, ~250 KB.
+- Subtitles: each part's start time is exact; words inside a part are spread by length.
+- Backup: if Gemini TTS fails, Cloud TTS `hi-IN-Neural2-A` (pitch +6, rate 1.1, exact word marks) is used automatically.
+- Checked live: Gemini transcribed the clip back word for word, clarity 10/10.
+- To change: `TTS_VOICE` (other Gemini voices: Leda, Kore, Fenrir…) or `TTS_PROVIDER=google` in `tools/gcp/mittuai-deploy.ps1`.
 
 ## Spend controls
 Per user: `READINGS_PER_DAY` (5), crisis and off-topic questions free, Gemini output capped at 1500 tokens, the reading
 given back if Gemini fails. Per service: `--max-instances 5`, CPU only during requests. Measured cost per reading
-(2026-11-12): about 670 input + 130 output tokens and about 450 TTS characters. Watch Gemini + TTS spend for the first days
+(2026-11-12): about 670 input + 130 output tokens and one Gemini TTS call per part (4) for the voice. Watch Gemini + TTS spend for the first days
 after each release (guide 15).

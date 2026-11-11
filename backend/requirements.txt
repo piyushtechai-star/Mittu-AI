@@ -8,3 +8,4 @@ google-cloud-texttospeech==2.38.0
 google-cloud-storage==3.17.1
 pyjwt==2.15.1
 tzdata==2026.5
+lameenc==1.9.0

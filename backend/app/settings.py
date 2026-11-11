@@ -60,9 +60,13 @@ GEMINI_THINKING = os.environ.get("GEMINI_THINKING", "low")       # "" = model de
 READING_MAX_OUTPUT_TOKENS = int(os.environ.get("READING_MAX_OUTPUT_TOKENS", "1500"))  # thinking included; reply ~150
 QUESTION_MAX_CHARS = 300
 
-# --- Mittu's voice: Google Cloud Text-to-Speech (guide 07) ---
-TTS_PROVIDER = os.environ.get("TTS_PROVIDER", "google")          # "google" | "fake"
-TTS_VOICE = os.environ.get("TTS_VOICE", "hi-IN-Neural2-A")        # pick by ear: test 3-4 hi-IN voices at +5..+7
+# --- Mittu's voice (app/tts.py) ---
+# "gemini": Gemini TTS on Vertex performs the reading as Mittu (chosen by the team 2026-11-12, sounds most real);
+# falls back to Cloud TTS if it fails. "google": Cloud TTS only (guide 07 settings). "fake": silent clip (tests).
+TTS_PROVIDER = os.environ.get("TTS_PROVIDER", "gemini")
+TTS_MODEL = os.environ.get("TTS_MODEL", "gemini-2.5-flash-tts")
+TTS_VOICE = os.environ.get("TTS_VOICE", "Puck")                   # Gemini prebuilt voice
+TTS_CLOUD_VOICE = os.environ.get("TTS_CLOUD_VOICE", "hi-IN-Neural2-A")  # Cloud TTS voice (backup)
 TTS_PITCH = float(os.environ.get("TTS_PITCH", "6.0"))
 TTS_RATE = float(os.environ.get("TTS_RATE", "1.1"))
 VOICE_BUCKET = os.environ.get("VOICE_BUCKET", "mittuai-voice")    # PRIVATE bucket, lifecycle: delete after 7 days
@@ -103,7 +107,7 @@ if STORE == "firestore":
     if JWT_SECRET == "dev-only-change-me" or len(JWT_SECRET) < 32:
         raise RuntimeError("Set a strong MITTUAI_JWT_SECRET (32+ chars)")
     _test = [f"{n}={v}" for n, v, ok in (("OTP_MODE", OTP_MODE, "sms"), ("BILLING_MODE", BILLING_MODE, "razorpay"),
-                                          ("AI_PROVIDER", AI_PROVIDER, "vertex"), ("TTS_PROVIDER", TTS_PROVIDER, "google"))
-             if v != ok]
+                                          ("AI_PROVIDER", AI_PROVIDER, "vertex"), ("TTS_PROVIDER", TTS_PROVIDER, ("gemini", "google")))
+             if v not in ((ok,) if isinstance(ok, str) else ok)]
     if _test:
         raise RuntimeError(f"Test settings are not allowed in production: {', '.join(_test)}")

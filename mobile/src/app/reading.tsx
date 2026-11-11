@@ -285,14 +285,21 @@ export default function ReadingScreen() {
       }, i * 70));
     });
     await wait(1400);
-    // 4) suspense: hover over two other cards, then wait for the backend's card if it isn't here yet
-    const others = [0, 1, 2, 3, 4, 5, 6].filter((i) => i !== chosen).sort(() => Math.random() - 0.5).slice(0, 2);
-    for (const i of others) {
+    // 4) suspense: hover over at least two other cards, and keep "choosing" (card to card, slower and slower)
+    //    until the backend's card and Mittu's voice are ready (the acted voice takes ~10 s to make).
+    let ready = false;
+    resultRef.current.then(() => { ready = true; }, () => { ready = true; });
+    const others = [0, 1, 2, 3, 4, 5, 6].filter((i) => i !== chosen);
+    let last = -1;
+    for (let n = 0; n < 2 || (!ready && n < 40); n++) {
+      const pool = others.filter((i) => i !== last);
+      const i = pool[Math.floor(Math.random() * pool.length)];
+      last = i;
       setMode('fly');
-      await flyTo(fan[i].x, fan[i].y - L.fanCh * 0.95, 380);
+      await flyTo(fan[i].x, fan[i].y - L.fanCh * 0.95, n < 2 ? 380 : 620);
       setMode('hover');
       cards[i].y.value = withSequence(withTiming(fan[i].y - 10, { duration: 220 }), withTiming(fan[i].y, { duration: 220 }));
-      await wait(220);
+      await wait(n < 2 ? 220 : 650);
     }
     const r = await resultRef.current;   // API errors (limit reached, busy) are thrown here → message
     if (R.cancelled) throw CANCEL;

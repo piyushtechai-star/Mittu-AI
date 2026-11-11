@@ -20,7 +20,7 @@ prototype-web/ First browser prototype (Vite). Reference only: it uses Anthropic
 | Team web app | `mittuai-web`: https://mittuai-web-319635525745.asia-south1.run.app (login 9999988888 / 123456) |
 | Database | Firestore `mittuai` |
 | Voice clips | `gs://mittuai-voice` (private, 7-day lifecycle, 1-hour signed URLs) |
-| AI / voice | Gemini `gemini-3.8-flash` on Vertex AI (global endpoint) · Cloud Text-to-Speech `hi-IN-Neural2-A`, pitch +6, rate 1.1 |
+| AI / voice | Gemini `gemini-3.8-flash` on Vertex AI (global endpoint) · Mittu's voice: Gemini TTS `gemini-2.5-flash-tts` voice Puck acting the parrot (Cloud TTS `hi-IN-Neural2-A` as backup) |
 | Service account | `mittuai-api@colorjoy-app.iam.gserviceaccount.com` (least privilege, see backend/README.md) |
 | Reviewer login | 9999988888 / 123456 (full access, no SMS). Check it after every backend deploy |
 
