@@ -57,5 +57,5 @@ Sirf manoranjan ke liye 🦜
 | Asset | Requirement | File |
 |---|---|---|
 | App icon | 512 × 512 PNG, up to 1 MB (Mittu's head) | `store/play-icon-512.png` (from `tools/render-assets.mjs`) |
-| Feature graphic | 1024 × 500, no transparency | TO DO |
-| Phone screenshots | 4-8, portrait 9:16, ≥ 1080 px wide | TO DO (Home with Mittu, Mittu picking a card, card reveal, reading with subtitles, profile), each with a short headline; realistic example data, never test text |
+| Feature graphic | 1024 × 500, no transparency | `store/feature-graphic-1024x500.png` |
+| Phone screenshots | 4-8, portrait 9:16, ≥ 1080 px wide | `store/screenshots/01-home.png` … `06-profile.png` (6, real app, real readings, headlines, no prices) |

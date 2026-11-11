@@ -11,3 +11,4 @@ mobile/expo-env.d.ts
 prototype-web/dist/
 .claude/settings.local.json
 web-hosting/dist/
+store/screenshots/raw/
