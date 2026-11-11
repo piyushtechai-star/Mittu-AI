@@ -1,0 +1,5 @@
+{
+  "expression": "resource.name == \"projects/colorjoy-app/databases/mittuai\"",
+  "title": "mittuai-db-only",
+  "description": "Mittu AI API may only use its own Firestore database"
+}

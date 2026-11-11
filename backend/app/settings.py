@@ -53,7 +53,9 @@ TESTERS: dict[str, str] = {}        # named testers with full access: {"99999xxx
 # --- AI: Gemini on Vertex AI (guide 01). No API key: the Cloud Run service account needs "Vertex AI User". ---
 AI_PROVIDER = os.environ.get("AI_PROVIDER", "vertex")            # "vertex" | "fake" (local runs and tests)
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
-VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", REGION)
+# gemini-3.8-flash is served from Vertex's "global" endpoint, not asia-south1 (checked 2026-11-12); everything else
+# (Cloud Run, Firestore, the voice bucket) stays in asia-south1.
+VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "global")
 GEMINI_THINKING = os.environ.get("GEMINI_THINKING", "low")       # "" = model default
 READING_MAX_OUTPUT_TOKENS = int(os.environ.get("READING_MAX_OUTPUT_TOKENS", "1500"))  # thinking included; reply ~150
 QUESTION_MAX_CHARS = 300
