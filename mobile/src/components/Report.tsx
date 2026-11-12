@@ -71,8 +71,8 @@ export function ReportSheet({ readingId, onClose }: { readingId: string | null; 
 }
 
 /** "Sirf manoranjan ke liye" + Report, shown under every reading (guide 06 rule). */
-export function ReadingFooter({ onReport, dark }: { onReport: () => void; dark?: boolean }) {
-  const c = dark ? 'rgba(246,238,219,0.6)' : colors.textSecondary;
+export function ReadingFooter({ onReport, color }: { onReport: () => void; color?: string }) {
+  const c = color ?? colors.textSecondary;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: space.md }}>
       <Text style={[type.footnote, { flex: 1, color: c }]}>Sirf manoranjan ke liye 🦜</Text>

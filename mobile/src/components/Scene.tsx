@@ -1,10 +1,11 @@
-// Pieces of the immersive reading scene (the app's one dark, illustrated screen; guide 01 design exception).
+// Pieces of the night scenes: backdrop, gold dust, perch, feathers, sparkle burst (storyboard 2026-11-12: every screen is navy and gold).
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop, SvgXml } from 'react-native-svg';
 
 import { mandalaMarkup } from '@/data/cardArt';
+import { useScopedSvgs } from '@/lib/svgIds';
 import { scene } from '@/theme';
 
 const MANDALA = mandalaMarkup();
@@ -59,6 +60,40 @@ export function NightBackdrop({ width, height, mandalaY, still }: { width: numbe
   );
 }
 
+/** Background for the standard screens: night gradient, gold dust and faint mandalas top and bottom (storyboard). */
+const DUST = (() => {
+  const rnd = seeded(11);
+  return Array.from({ length: 70 }, () => ({ x: rnd() * 100, y: rnd() * 100, r: rnd() * 1.2 + 0.3, o: 0.2 + rnd() * 0.55, gold: rnd() < 0.35 }));
+})();
+export function StarField() {
+  return (
+    <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }]} pointerEvents="none">
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+        <Defs>
+          <LinearGradient id="sf" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#1A1238" />
+            <Stop offset="0.45" stopColor={scene.night} />
+            <Stop offset="1" stopColor="#120C33" />
+          </LinearGradient>
+          <RadialGradient id="sfg" cx="50%" cy="0%" r="70%">
+            <Stop offset="0" stopColor="#B8862B" stopOpacity="0.22" />
+            <Stop offset="1" stopColor="#B8862B" stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#sf)" />
+        <Rect width="100%" height="100%" fill="url(#sfg)" />
+        {DUST.map((d, i) => <Circle key={i} cx={`${d.x}%`} cy={`${d.y}%`} r={d.r} fill={d.gold ? '#F3C860' : '#FFF6DC'} opacity={d.o} />)}
+      </Svg>
+      <View style={{ position: 'absolute', top: -170, alignSelf: 'center', opacity: 0.07 }}>
+        <SvgXml xml={MANDALA} width={340} height={340} />
+      </View>
+      <View style={{ position: 'absolute', bottom: -190, alignSelf: 'center', opacity: 0.08 }}>
+        <SvgXml xml={MANDALA} width={380} height={380} />
+      </View>
+    </View>
+  );
+}
+
 export function Vignette({ width, height }: { width: number; height: number }) {
   return (
     <Svg width={width} height={height} style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -83,10 +118,12 @@ const PERCH = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 150">
 <path d="M72 134C76 120 92 116 110 116C128 116 144 120 148 134Z" fill="url(#pw)"/><rect x="64" y="132" width="92" height="8" rx="4" fill="url(#pb)"/></svg>`;
 
 /** Ornate brass-and-wood perch; `rodY` is where Mittu's feet rest. */
+const PERCH_SVGS = { perch: PERCH };
 export function Perch({ x, rodY, scale = 1 }: { x: number; rodY: number; scale?: number }) {
+  const { perch } = useScopedSvgs(PERCH_SVGS);
   return (
     <View pointerEvents="none" style={{ position: 'absolute', left: x - 110 * scale, top: rodY - 10 * scale }}>
-      <SvgXml xml={PERCH} width={220 * scale} height={150 * scale} />
+      <SvgXml xml={perch} width={220 * scale} height={150 * scale} />
     </View>
   );
 }

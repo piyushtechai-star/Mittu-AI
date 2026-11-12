@@ -1,12 +1,13 @@
-// The reading scene (guide 06/07): about 8 seconds, skippable, then Mittu speaks with word-by-word subtitles.
-//   1. screen dims, ambient santoor starts   2. Mittu flies off the perch in an arc, feathers fall
-//   3. 7 face-down cards fan out; Mittu hovers over 2-3, then picks one with his beak
-//   4. card flips (3D Y-axis) with a gold sparkle and a chime   5. Mittu lands beside it, squawks once, speaks
+// The reading scene (guide 06/07 + HouseofTech storyboard 5-12): about 9 seconds, skippable, then Mittu speaks.
+//   5. cinematic zoom: a bansuri in a spinning gold ring, notes, ambient santoor   6. Mittu takes off in an arc, feathers
+//   7. 7 face-down cards spread in two rows   8. Mittu hovers over 2-3 (they glow)   9. picks one with his beak
+//   10. 3D flip with a gold swirl, sparkle and chime   11. Mittu lands on the rod beside it: "Suno suno...", voice + subtitles
+//   12. parchment scroll: the reading, lucky colour and number, Ek aur card / Share Karo / Replay Voice
 // The card comes from the backend (POST /reading); Mittu keeps hovering until it has arrived.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming, type SharedValue,
 } from 'react-native-reanimated';
@@ -14,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApiError } from '@/api/client';
 import { askMittu, getReading, type Reading, type ReadingResult } from '@/api/mittu';
+import { Flourish, FluteZoom, ink, Parchment, Rod, Swirl } from '@/components/Art';
 import { Mittu, type MittuMode } from '@/components/Mittu';
 import { ReadingFooter, ReportSheet } from '@/components/Report';
 import { Burst, Feather, NightBackdrop, Perch, Vignette } from '@/components/Scene';
@@ -24,7 +26,7 @@ import { getSkipAnimation, takePendingReading } from '@/lib/nav';
 import {
   initSound, isMuted, onMuteChange, play, playVoice, setMuted, speakOnDevice, startAmbient, stopAmbient, stopVoice,
 } from '@/lib/sound';
-import { scene, space, type } from '@/theme';
+import { scene, serif, space, type } from '@/theme';
 
 const FAN = 7;
 const CANCEL = new Error('cancelled');
@@ -33,20 +35,26 @@ const EASE = Easing.inOut(Easing.cubic);
 type Layout = ReturnType<typeof layout>;
 function layout(w: number, h: number, top: number) {
   const S = Math.round(Math.min(112, w * 0.28));
-  const rodY = h - 120;
+  const perchRod = h - 120;
   const cw = Math.round(Math.min(w * 0.5, 210, (h * 0.44) / 1.6));
   const ch = cw * 1.6;
   const cardTop = top + 64;
   const final = { x: w / 2, y: cardTop + ch / 2 };
   const landX = Math.min(w / 2 + cw / 2 + S * 0.12, w - S / 2 - 2);
-  const fanCw = Math.min(w * 0.19, 76);
-  const R = w * 0.6;
-  const fan = Array.from({ length: FAN }, (_, i) => {
-    const a = ((-34 + (68 / (FAN - 1)) * i) * Math.PI) / 180;
-    return { x: w / 2 + R * Math.sin(a), y: h * 0.42 + R - R * Math.cos(a), rot: (a * 180) / Math.PI };
-  });
-  return { w, h, S, rodY, perch: { x: w / 2, y: rodY - 0.36 * S }, cw, ch, final, land: { x: landX, y: cardTop + ch - S * 0.3 },
-    fan, fanScale: fanCw / cw, fanCh: fanCw * 1.6, panelTop: cardTop + ch + 14 };
+  const fanCw = Math.min(w * 0.2, 80);
+  const fanCh = fanCw * 1.6;
+  // Two rows (storyboard 7): 3 at the back, 4 in front overlapping them.
+  const R = w * 0.78;
+  const row = (deg: number, cy: number) => {
+    const a = (deg * Math.PI) / 180;
+    return { x: w / 2 + R * Math.sin(a), y: cy + R - R * Math.cos(a), rot: deg };
+  };
+  const backY = h * 0.36;
+  const fan = [...[-15, 0, 15].map((d) => row(d, backY)), ...[-24, -8, 8, 24].map((d) => row(d, backY + fanCh * 0.7))];
+  const land = { x: landX, y: cardTop + ch - S * 0.3 };
+  return { w, h, S, rodY: perchRod, perch: { x: w / 2, y: perchRod - 0.36 * S }, cw, ch, final, land,
+    rod: { x1: w / 2 + cw * 0.15, x2: Math.min(w - 4, landX + S * 0.55), y: land.y + S * 0.27 },
+    fan, fanScale: fanCw / cw, fanCh, panelTop: cardTop + ch + 16 };
 }
 
 function useCardMotion() {
@@ -117,6 +125,16 @@ const estimateTimes = (words: string[], duration: number) => {
   return weight.map((x) => { const t = (acc / total) * duration; acc += x; return t; });
 };
 
+/** "...Lucky color, sunhera peela... lucky number, das!" -> { color: 'Sunhera peela', number: 'Das' } for the scroll. */
+const pickLucky = (re: RegExp, t: string) => {
+  const v = t.match(re)?.[1]?.trim().replace(/^(hai|is)\s+/i, '');
+  return v ? v[0].toUpperCase() + v.slice(1) : null;
+};
+const luckyOf = (t: string) => ({
+  color: pickLucky(/(?:lucky\s*colou?r|लकी\s*(?:कलर|रंग))\s*[,:\-–]?\s*([^.!?…।,]+)/i, t),
+  number: pickLucky(/(?:lucky\s*number|लकी\s*नंबर)\s*[,:\-–]?\s*([^.!?…।,]+)/i, t),
+});
+
 export default function ReadingScreen() {
   const insets = useSafeAreaInsets();
   const { refresh } = useAuth();
@@ -138,6 +156,9 @@ export default function ReadingScreen() {
   const [feathers, setFeathers] = useState<{ id: number; x: number; y: number; dir: 1 | -1 }[]>([]);
   const [muted, setMutedState] = useState(isMuted());
   const [reportId, setReportId] = useState<string | null>(null);
+  const [flute, setFlute] = useState(false);
+  const [perched, setPerched] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const mx = useSharedValue(0), my = useSharedValue(0), mrot = useSharedValue(0), mscale = useSharedValue(1);
   const dim = useSharedValue(0);
@@ -235,6 +256,7 @@ export default function ReadingScreen() {
     dim.value = 0.6;
     face(-1);
     setMode('idle');
+    setPerched(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [L]);
 
@@ -251,11 +273,13 @@ export default function ReadingScreen() {
     if (!L || !resultRef.current) return;
     const R = run.current;
     const fan = L.fan;
-    // 1) dim, ambient, whoosh
+    // 5) cinematic zoom: bansuri in a gold ring, ambient santoor, whoosh
     play('whoosh', 0.8);
     startAmbient();
     dim.value = withTiming(1, { duration: 900 });
-    await wait(800);
+    setFlute(true);
+    await wait(1800);
+    setFlute(false);
     // 2) take off in an arc, feathers fall
     setMode('fly');
     flaps(170);
@@ -299,6 +323,7 @@ export default function ReadingScreen() {
       await flyTo(fan[i].x, fan[i].y - L.fanCh * 0.95, n < 2 ? 380 : 620);
       setMode('hover');
       cards[i].y.value = withSequence(withTiming(fan[i].y - 10, { duration: 220 }), withTiming(fan[i].y, { duration: 220 }));
+      cards[i].scale.value = withSequence(withTiming(L.fanScale * 1.12, { duration: 220 }), withTiming(L.fanScale, { duration: 320 }));
       await wait(n < 2 ? 220 : 650);
     }
     const r = await resultRef.current;   // API errors (limit reached, busy) are thrown here → message
@@ -350,7 +375,8 @@ export default function ReadingScreen() {
     play('chime', 0.9);
     dim.value = withTiming(0.6, { duration: 900 });
     await wait(470);
-    // 5) Mittu lands beside the card
+    // 11) Mittu lands on the rod beside the card
+    setPerched(true);
     setMode('fly');
     face(L.land.x < mx.value ? -1 : 1);
     mx.value = withTiming(L.land.x, { duration: 700, easing: Easing.out(Easing.cubic) });
@@ -426,6 +452,8 @@ export default function ReadingScreen() {
   function showMessage(r: ReadingResult | null) {
     run.current.timers.forEach(clearTimeout);
     flaps(null);
+    setFlute(false);
+    setPerched(false);
     if (r) setResult(r);
     setPhase('message');
     cards.forEach((c) => { c.opacity.value = withTiming(0, { duration: 400 }); });
@@ -443,6 +471,7 @@ export default function ReadingScreen() {
     R.timers.forEach(clearTimeout);
     flaps(null);
     setFeathers([]);
+    setFlute(false);
     const r = await resultRef.current!.catch(() => null);
     if (!r || r.kind !== 'reading') return showMessage(r);
     const chosen = chosenRef.current;
@@ -453,9 +482,23 @@ export default function ReadingScreen() {
     reveal(r, chosen);
   }
 
+  async function share(r: Reading) {
+    const message = `🦜 Mittu ne mere liye ${r.card.name} (${r.card.hindi}) ka card nikaala!\n\n${r.text}\n\n— Mittu AI · Sirf manoranjan ke liye`;
+    track('reading_shared', { card: r.card.id });
+    try {
+      await Share.share({ message });
+    } catch {
+      // Browsers without a share sheet: copy instead.
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(message).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); }, () => {});
+      }
+    }
+  }
+
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
   const reading = result?.kind === 'reading' ? result : null;
   const words = useMemo(() => (reading ? reading.text.split(/\s+/) : []), [reading]);
+  const lucky = useMemo(() => (reading ? luckyOf(reading.text) : { color: null, number: null }), [reading]);
   const still = !!reducedMotion;
 
   return (
@@ -469,14 +512,17 @@ export default function ReadingScreen() {
           <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(4,3,20,0.55)' }, dimStyle]} />
           <Perch x={L.perch.x} rodY={L.rodY} />
           {cards.map((c, i) => (
-            <SceneCard key={i} m={c} L={L} z={i === slot && phase !== 'intro' ? 22 : 10 + (i === slot ? 5 : 0)}>
+            <SceneCard key={i} m={c} L={L} z={i === slot && phase !== 'intro' ? 22 : 10 + (i >= 3 ? 2 : 0) + (i === slot ? 5 : 0)}>
               <FlipCard card={i === slot && reading ? reading.card : null} reversed={reading?.orientation === 'reversed'} width={L.cw} flip={c.flip} />
             </SceneCard>
           ))}
           {feathers.map((f) => <Feather key={f.id} x={f.x} y={f.y} dir={f.dir} />)}
           <MittuActor x={mx} y={my} rot={mrot} scale={mscale} L={L} mode={mode} facing={facing} talking={talking} still={still} />
+          <Rod x1={L.rod.x1} x2={L.rod.x2} y={L.rod.y} visible={perched} />
+          {burst ? <Swirl key={`s${burst}`} x={L.final.x} y={L.final.y} width={L.cw} /> : null}
           {burst ? <Burst key={burst} seed={burst} x={L.final.x} y={L.final.y} radius={L.cw * 0.9} /> : null}
           <Vignette width={L.w} height={L.h} />
+          {flute ? <FluteZoom width={L.w} height={L.h} /> : null}
 
           {phase === 'intro' && !error ? (
             <View pointerEvents="none" style={[styles.status, { bottom: insets.bottom + 24 }]}>
@@ -485,25 +531,50 @@ export default function ReadingScreen() {
           ) : null}
 
           {phase === 'revealed' && reading ? (
-            <ScrollView style={{ position: 'absolute', left: 0, right: 0, top: L.panelTop, bottom: 0 }}
+            <ScrollView style={{ position: 'absolute', left: 0, right: 0, top: L.panelTop, bottom: 0, zIndex: 35 }}
               contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: insets.bottom + space.lg }}>
-              <Text style={styles.cardName}>
-                {reading.card.name} — {reading.card.hindi}{reading.orientation === 'reversed' ? ' (Ulta)' : ''}
-              </Text>
-              {speaking ? <Subtitles words={words} current={wordIdx} /> : null}
-              <View style={styles.textBox}>
-                <Text style={{ color: scene.text, fontSize: 15.5, lineHeight: 23 }}>{reading.text}</Text>
-                <ReadingFooter dark onReport={() => setReportId(reading.id)} />
-              </View>
-              <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.md }}>
-                <Pressable accessibilityRole="button" onPress={() => (speaking ? (stopSpeech.current?.(), stopVoice()) : void speak(reading))} style={styles.ghostBtn}>
-                  <Ionicons name={speaking ? 'stop' : 'refresh'} size={17} color={scene.goldSoft} />
-                  <Text style={styles.ghostText}>{speaking ? 'Roko' : 'Phir se suniye'}</Text>
-                </Pressable>
-                <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.ghostBtn, { backgroundColor: scene.gold, borderColor: scene.gold }]}>
-                  <Text style={[styles.ghostText, { color: '#1B1240' }]}>Naya sawaal</Text>
-                </Pressable>
-              </View>
+              <Text style={styles.caption}>Suno suno… Mittu ne nikaala hai {reading.card.hindi} ka card!</Text>
+              {speaking ? (
+                <>
+                  <Subtitles words={words} current={wordIdx} />
+                  <Pressable accessibilityRole="button" onPress={() => { stopSpeech.current?.(); stopVoice(); }} style={[styles.ghostBtn, { flex: 0 }]}>
+                    <Ionicons name="stop" size={17} color={scene.goldSoft} />
+                    <Text style={styles.ghostText}>Roko, result dikhao</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Parchment>
+                  <Text style={styles.scrollTitle}>Aapka result</Text>
+                  <Flourish />
+                  <Text style={styles.scrollCard}>
+                    {reading.card.name} · {reading.card.hindi}{reading.orientation === 'reversed' ? ' (Ulta)' : ''}
+                  </Text>
+                  <Text style={{ color: ink.text, fontSize: 15.5, lineHeight: 23, marginTop: space.sm }}>{reading.text}</Text>
+                  {lucky.color || lucky.number ? (
+                    <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.md }}>
+                      {lucky.color ? (
+                        <View style={styles.luckyBox}><Text style={styles.luckyLabel}>Lucky colour</Text><Text style={styles.luckyValue}>{lucky.color}</Text></View>
+                      ) : null}
+                      {lucky.number ? (
+                        <View style={styles.luckyBox}><Text style={styles.luckyLabel}>Lucky number</Text><Text style={styles.luckyValue}>{lucky.number}</Text></View>
+                      ) : null}
+                    </View>
+                  ) : null}
+                  <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.scrollBtn, { backgroundColor: scene.gold, borderColor: '#9A7420', marginTop: space.lg }]}>
+                    <Ionicons name="sparkles" size={17} color="#1B1240" />
+                    <Text style={[styles.ghostText, { color: '#1B1240' }]}>Ek aur card</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => void share(reading)} style={styles.scrollBtn}>
+                    <Ionicons name="share-social-outline" size={17} color={scene.goldSoft} />
+                    <Text style={styles.ghostText}>{copied ? 'Copy ho gaya!' : 'Share Karo'}</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => void speak(reading)} style={styles.scrollBtn}>
+                    <Ionicons name="refresh" size={17} color={scene.goldSoft} />
+                    <Text style={styles.ghostText}>Replay Voice</Text>
+                  </Pressable>
+                  <ReadingFooter color={ink.soft} onReport={() => setReportId(reading.id)} />
+                </Parchment>
+              )}
             </ScrollView>
           ) : null}
 
@@ -557,7 +628,15 @@ const styles = StyleSheet.create({
   round: { height: 40, minWidth: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(30,20,70,0.7)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)' },
   status: { position: 'absolute', left: 0, right: 0 },
-  cardName: { color: scene.goldSoft, textAlign: 'center', fontSize: 17, fontWeight: '700', letterSpacing: 0.5, marginBottom: space.sm },
+  caption: { fontFamily: serif, color: scene.goldSoft, textAlign: 'center', fontSize: 20, lineHeight: 27, fontWeight: '700', marginBottom: space.md,
+    textShadowColor: 'rgba(212,175,55,0.55)', textShadowRadius: 10 },
+  scrollTitle: { fontFamily: serif, color: ink.text, textAlign: 'center', fontSize: 24, fontWeight: '700' },
+  scrollCard: { fontFamily: serif, color: ink.gold, textAlign: 'center', fontSize: 16, fontWeight: '700', letterSpacing: 0.4 },
+  luckyBox: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(154,116,32,0.5)', backgroundColor: 'rgba(255,248,225,0.45)' },
+  luckyLabel: { color: ink.soft, fontSize: 12, letterSpacing: 0.4 },
+  luckyValue: { fontFamily: serif, color: ink.text, fontSize: 17, fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  scrollBtn: { height: 48, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: space.sm,
+    backgroundColor: '#1E1650', borderWidth: 1, borderColor: 'rgba(212,175,55,0.6)' },
   subs: { borderRadius: 16, paddingHorizontal: space.lg, paddingVertical: space.md, marginBottom: space.md,
     backgroundColor: 'rgba(14,9,40,0.92)', borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.75)', minHeight: 52, justifyContent: 'center' },
   textBox: { borderRadius: 16, padding: space.lg, backgroundColor: 'rgba(20,13,58,0.85)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)' },

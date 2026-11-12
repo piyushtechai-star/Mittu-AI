@@ -11,6 +11,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SvgXml } from 'react-native-svg';
 
+import { useScopedSvgs } from '@/lib/svgIds';
+
 export type MittuMode = 'idle' | 'fly' | 'hover' | 'pick' | 'land' | 'talk';
 
 const V = (inner: string) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">${inner}</svg>`;
@@ -34,6 +36,14 @@ const L = {
     <circle cx="107" cy="44" r="7.4" fill="#FFF8E1" stroke="#FFB300" stroke-width="1.4"/>
     <circle cx="108.6" cy="44.4" r="4" fill="#141414"/><circle cx="110.2" cy="42.6" r="1.5" fill="#fff"/>
     <path d="M117 56L128 62L117 65Z" fill="#4A0D0D"/>`),
+  // Red pagdi with a gold brooch and plume (storyboard "Meet Mittu"); drawn in head coordinates so it tilts with the head.
+  turban: V(`<defs><linearGradient id="mtb" x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stop-color="#FF5A4A"/><stop offset="0.55" stop-color="#D32F2F"/><stop offset="1" stop-color="#8E1414"/></linearGradient></defs>
+    <path d="M78 36C76 20 88 8 102 8C116 8 126 18 124 34C112 28 92 28 78 36Z" fill="url(#mtb)"/>
+    <path d="M80 30C92 22 110 20 123 26M82 23C94 15 110 14 120 18M90 14C100 10 110 10 116 13" stroke="#7A0F0F" stroke-width="1.7" fill="none" opacity="0.75" stroke-linecap="round"/>
+    <path d="M84 20C94 14 106 13 114 15" stroke="#FF9A8A" stroke-width="1.2" fill="none" opacity="0.6" stroke-linecap="round"/>
+    <path d="M78 36C92 28 112 28 124 34L124 38C112 32 92 32 78 40Z" fill="#A61B1B"/>
+    <path d="M116 18C115 12 118 6 123 3C121 9 121 13 118 18Z" fill="#F3DC8A"/>
+    <circle cx="116" cy="22" r="4.4" fill="#D4AF37" stroke="#FFF0B8" stroke-width="0.8"/><circle cx="116" cy="22" r="1.9" fill="#2ECC71"/>`),
   lid: V('<ellipse cx="107" cy="44" rx="8.6" ry="8.6" fill="#55DE8C"/>'),
   lowerBeak: V('<path d="M117 59C122 60 127 62 127 66C125 70 120 70 116 66Z" fill="#8E1B1B"/>'),
   upperBeak: V(`<defs><linearGradient id="mk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF6F4F"/><stop offset="0.6" stop-color="#E53935"/><stop offset="1" stop-color="#B71C1C"/></linearGradient></defs>
@@ -45,9 +55,9 @@ const L = {
 };
 
 /** One static picture of Mittu on a perch pose (app icon, store art). */
-export function mittuStaticSvg() {
+export function mittuStaticSvg(turban = false) {
   const inner = (s: string) => s.replace(/^<svg[^>]*>|<\/svg>$/g, '');
-  return V([L.tail, L.feet, L.body, L.foldedWing, L.head, L.lowerBeak, L.upperBeak].map(inner).join(''));
+  return V([L.tail, L.feet, L.body, L.foldedWing, L.head, L.lowerBeak, L.upperBeak, ...(turban ? [L.turban] : [])].map(inner).join(''));
 }
 
 const origin = (x: number, y: number) => `${(x / 160) * 100}% ${(y / 160) * 100}% 0px`;
@@ -61,9 +71,10 @@ function Layer({ xml, size, style }: { xml: string; size: number; style?: object
   );
 }
 
-export function Mittu({ mode = 'idle', size = 120, facing = 1, talking = false, still = false }: {
-  mode?: MittuMode; size?: number; facing?: 1 | -1; talking?: boolean; still?: boolean;
+export function Mittu({ mode = 'idle', size = 120, facing = 1, talking = false, still = false, turban = false }: {
+  mode?: MittuMode; size?: number; facing?: 1 | -1; talking?: boolean; still?: boolean; turban?: boolean;
 }) {
+  const X = useScopedSvgs(L);
   const flying = mode === 'fly' || mode === 'hover' || mode === 'pick';
   const flap = useSharedValue(0);
   const breathe = useSharedValue(0);
@@ -115,20 +126,21 @@ export function Mittu({ mode = 'idle', size = 120, facing = 1, talking = false, 
 
   return (
     <View style={{ width: size, height: size, transform: [{ scaleX: facing }] }} pointerEvents="none">
-      {flying ? <Layer xml={L.farWing} size={size} style={farStyle} /> : null}
-      <Layer xml={L.tail} size={size} style={tailStyle} />
-      {!flying ? <Layer xml={L.feet} size={size} /> : null}
+      {flying ? <Layer xml={X.farWing} size={size} style={farStyle} /> : null}
+      <Layer xml={X.tail} size={size} style={tailStyle} />
+      {!flying ? <Layer xml={X.feet} size={size} /> : null}
       <Animated.View style={[StyleSheet.absoluteFill, bodyStyle]}>
-        <Layer xml={L.body} size={size} />
-        {!flying ? <Layer xml={L.foldedWing} size={size} /> : null}
+        <Layer xml={X.body} size={size} />
+        {!flying ? <Layer xml={X.foldedWing} size={size} /> : null}
         <Animated.View style={[StyleSheet.absoluteFill, headStyle]}>
-          <Layer xml={L.head} size={size} />
-          <Layer xml={L.lid} size={size} style={lidStyle} />
-          <Layer xml={L.lowerBeak} size={size} style={beakStyle} />
-          <Layer xml={L.upperBeak} size={size} />
+          <Layer xml={X.head} size={size} />
+          <Layer xml={X.lid} size={size} style={lidStyle} />
+          <Layer xml={X.lowerBeak} size={size} style={beakStyle} />
+          <Layer xml={X.upperBeak} size={size} />
+          {turban ? <Layer xml={X.turban} size={size} /> : null}
         </Animated.View>
       </Animated.View>
-      {flying ? <Layer xml={L.nearWing} size={size} style={nearStyle} /> : null}
+      {flying ? <Layer xml={X.nearWing} size={size} style={nearStyle} /> : null}
     </View>
   );
 }

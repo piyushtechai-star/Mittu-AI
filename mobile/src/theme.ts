@@ -1,20 +1,19 @@
 import { Platform } from 'react-native';
 
-// Standard screens (guide 01): clean iOS-native look, white, neutrals, one accent colour (parrot green).
-// The reading scene is the only immersive (dark, illustrated) screen; its colours are in `scene`.
+// Night theme (HouseofTech storyboard 2026-11-12): every screen is deep navy with gold, like the reading scene.
 export const colors = {
-  bg: '#FFFFFF',
-  surface: '#F4F5F3',
-  card: '#FFFFFF',
-  border: '#E6E8E5',
-  text: '#121714',
-  textSecondary: '#5D6661',
-  textTertiary: '#98A09B',
-  accent: '#17844B',        // parrot green, 4.7:1 on white (readable white text on it)
-  accentSoft: '#E7F4EC',
-  onAccent: '#FFFFFF',
-  danger: '#C62828',
-  success: '#17844B',
+  bg: '#0B0B2B',
+  surface: '#17113F',       // inputs
+  card: 'rgba(24,17,66,0.86)',
+  border: 'rgba(212,175,55,0.30)',
+  text: '#F6EEDB',
+  textSecondary: '#CFC5AC',
+  textTertiary: '#8F879E',
+  accent: '#D4AF37',        // gold
+  accentSoft: 'rgba(212,175,55,0.14)',
+  onAccent: '#1B1240',
+  danger: '#FF7A7A',
+  success: '#2ECC71',
 };
 
 export const scene = {
@@ -29,7 +28,8 @@ export const scene = {
 
 export const serif = Platform.select({ ios: 'Georgia', android: 'serif', default: 'Georgia, "Times New Roman", serif' });
 
-export const shadow = { boxShadow: '0 2px 10px rgba(18, 23, 20, 0.06)' };
+export const shadow = { boxShadow: '0 4px 18px rgba(0, 0, 0, 0.35)' };
+export const glow = { boxShadow: '0 0 16px rgba(212, 175, 55, 0.45)' };
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
 export const radius = { sm: 10, md: 14, lg: 18, pill: 999 };

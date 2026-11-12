@@ -27,6 +27,7 @@ function Routes() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Protected guard={!signedIn} redirectTo={entry}>
         <Stack.Screen name="auth/index" />
+        <Stack.Screen name="auth/meet" options={{ animation: 'fade' }} />
         <Stack.Screen name="auth/phone" />
         <Stack.Screen name="auth/otp" />
       </Stack.Protected>
@@ -38,7 +39,7 @@ function Routes() {
       </Stack.Protected>
       <Stack.Protected guard={signedIn && next === 'home'} redirectTo={entry}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="reading" options={{ animation: 'fade', contentStyle: { backgroundColor: '#0B0B2B' } }} />
+        <Stack.Screen name="reading" options={{ animation: 'fade' }} />
         <Stack.Screen name="history" />
         <Stack.Screen name="invoices" />
       </Stack.Protected>
@@ -51,7 +52,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <StatusBar style="dark" />
+          <StatusBar style="light" />
           <Routes />
         </AuthProvider>
       </SafeAreaProvider>

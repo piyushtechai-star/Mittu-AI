@@ -8,7 +8,7 @@ export default function TabsLayout() {
   return (
     <Tabs screenOptions={{
       headerShown: false, tabBarActiveTintColor: colors.accent, tabBarInactiveTintColor: colors.textTertiary,
-      tabBarStyle: { backgroundColor: colors.bg, borderTopColor: colors.border },
+      tabBarStyle: { backgroundColor: '#0E0A2E', borderTopColor: colors.border },
       sceneStyle: { backgroundColor: colors.bg },
     }}>
       <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" color={color as string} size={size} /> }} />

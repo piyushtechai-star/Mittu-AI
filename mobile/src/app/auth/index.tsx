@@ -1,23 +1,29 @@
+// 1. Splash (storyboard): golden birdcage with Mittu, "Mittu AI", Get Started → 2. Meet Mittu.
 import { router } from 'expo-router';
 import { Text, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 
-import { Mittu } from '@/components/Mittu';
+import { Birdcage } from '@/components/Art';
 import { Button, Screen } from '@/components/ui';
-import { colors, space, type } from '@/theme';
+import { initSound } from '@/lib/sound';
+import { colors, scene, serif, space, type } from '@/theme';
 
-export default function Welcome() {
+export default function Splash() {
+  const still = !!useReducedMotion();
   return (
-    <Screen scroll={false} footer={<Button title="Shuru karein" onPress={() => router.push('/auth/phone')} />}>
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.lg }}>
-        <View style={{ width: 180, height: 180, borderRadius: 90, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-          <Mittu size={150} />
+    <Screen scroll={false}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ marginTop: -space.xxl }}>
+          <Birdcage size={210} still={still} />
         </View>
-        <Text style={[type.largeTitle, { textAlign: 'center' }]}>Mittu AI</Text>
-        <Text style={[type.callout, { textAlign: 'center', color: colors.textSecondary, maxWidth: 300 }]}>
-          Apna sawaal poochiye. Mittu tarot card nikaal kar aapka bhavishya sunayega.
-        </Text>
+        <Text style={{ fontFamily: serif, fontWeight: '700', fontSize: 46, color: scene.goldSoft, marginTop: space.lg,
+          textShadowColor: 'rgba(212,175,55,0.6)', textShadowRadius: 14 }}>Mittu AI</Text>
+        <Text style={[type.callout, { color: colors.textSecondary, textAlign: 'center', marginTop: space.xs }]}>Mittu bataega aapka{'\n'}bhavishya 🦜</Text>
+        <View style={{ marginTop: space.xl, minWidth: 200 }}>
+          <Button title="Get Started" iconRight="arrow-forward" onPress={() => { void initSound(); router.push('/auth/meet'); }} />
+        </View>
       </View>
-      <Text style={[type.footnote, { textAlign: 'center', marginBottom: space.sm }]}>Sirf manoranjan ke liye</Text>
+      <Text style={[type.footnote, { textAlign: 'center', marginBottom: space.md }]}>Sirf manoranjan ke liye</Text>
     </Screen>
   );
 }
