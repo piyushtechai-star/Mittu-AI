@@ -32,13 +32,16 @@ steps:
         echo "reactNativeArchitectures=arm64-v8a,x86_64" >> android/gradle.properties
         # Show the result in the build log.
         tail -12 android/gradle.properties
-        # The 8GB build machine runs out of memory without these.
+        # The 8GB build machine runs out of memory without these. SDK 58 renamed the R8 switch to
+        # android.enableMinifyInReleaseBuilds (template sets it true); with R8 on, builds 025bc012 and 5933b221 went
+        # silent at :app:minifyReleaseWithR8 and died at ~58 min with INTERNAL_ERROR. Later lines override the template.
         cat >> android/gradle.properties <<'PROPS'
         org.gradle.workers.max=1
         org.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8
         org.gradle.parallel=false
         org.gradle.daemon=false
         android.enableProguardInReleaseBuilds=false
+        android.enableMinifyInReleaseBuilds=false
         android.enableShrinkResourcesInReleaseBuilds=false
         PROPS
 
