@@ -23,10 +23,10 @@ ASK MITTU
 Type your question, pick what it is about (Love, Career, Paisa, Health or General) and tap "Mittu, card nikaalo!".
 
 WATCH HIM PICK YOUR CARD
-Mittu flies off his perch, seven cards fan out, he hovers over a few… and picks one with his beak. The card flips, sparkles, and Mittu lands beside it.
+A bansuri plays, Mittu flies off his perch, seven cards spread out, he hovers over a few… and picks one with his beak. The card flips in a swirl of gold, and Mittu lands beside it.
 
 HEAR YOUR READING
-Mittu speaks your reading in his own cheeky parrot voice, in simple Hinglish, with subtitles that appear word by word. Every reading ends with a practical tip, a lucky colour and a lucky number.
+Mittu speaks your reading in his own cheeky parrot voice, in simple Hinglish, with subtitles that appear word by word. Then your result opens on a parchment scroll: a practical tip, your lucky colour and lucky number. Share it with friends or hear it again.
 
 ALL 22 MAJOR ARCANA
 From The Fool to The World, upright or reversed (shown upside down), each with its own card art and Hindi name, like The Star (Taara) or The Sun (Surya).
@@ -58,4 +58,4 @@ Sirf manoranjan ke liye 🦜
 |---|---|---|
 | App icon | 512 × 512 PNG, up to 1 MB (Mittu's head) | `store/play-icon-512.png` (from `tools/render-assets.mjs`) |
 | Feature graphic | 1024 × 500, no transparency | `store/feature-graphic-1024x500.png` |
-| Phone screenshots | 4-8, portrait 9:16, ≥ 1080 px wide | `store/screenshots/01-home.png` … `06-profile.png` (6, real app, real readings, headlines, no prices) |
+| Phone screenshots | 4-8, portrait 9:16, ≥ 1080 px wide | `store/screenshots/01-splash.png` … `07-history.png` (7, real app, real readings, headlines, no prices) |

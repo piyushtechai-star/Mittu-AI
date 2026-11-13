@@ -1,7 +1,7 @@
 // 3. Input Sawaal (storyboard): question + coloured categories → 4. Let's Go screen.
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Switch, Text, View } from 'react-native';
+import { Switch, Text, useWindowDimensions, View } from 'react-native';
 
 import type { Category } from '@/api/mittu';
 import { Mittu } from '@/components/Mittu';
@@ -26,15 +26,17 @@ export default function Home() {
   // Back from a reading: today's count changed.
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
+  // Short phones: a smaller Mittu so the question box and the button fit above the tab bar.
+  const small = useWindowDimensions().height < 720;
   const left = me?.readingsLeftToday ?? 0;
   const first = me?.name?.split(' ')[0];
 
   return (
     <Screen>
       <View style={{ alignItems: 'center', marginTop: space.sm }}>
-        <View style={{ width: 160, height: 205, alignItems: 'center' }}>
-          <Perch x={80} rodY={118} scale={0.62} />
-          <Mittu size={138} turban />
+        <View style={{ width: 160, height: small ? 150 : 205, alignItems: 'center' }}>
+          <Perch x={80} rodY={small ? 86 : 118} scale={small ? 0.46 : 0.62} />
+          <Mittu size={small ? 100 : 138} turban />
         </View>
         <Text style={[type.largeTitle, { marginTop: space.sm, textAlign: 'center', fontFamily: serif, color: scene.goldSoft }]}>{first ? `Namaste, ${first}` : 'Namaste'}</Text>
         <Text style={[type.callout, { color: colors.textSecondary, textAlign: 'center', marginTop: 4 }]}>Mittu bataega aapka bhavishya 🦜</Text>

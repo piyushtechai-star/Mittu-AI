@@ -1,65 +1,83 @@
-# Mittu AI: Play Console answers (first upload)
+# Mittu AI: Play Console answers (first upload, internal testing)
 
-Checked against the code on 2026-11-12. Store text: `store/play-listing.md`. Legal drafts: `store/legal-drafts/`.
+Checked against the code on 2026-11-13 (12-screen storyboard design, no Meta SDK yet). Store text: `store/play-listing.md`. Graphics: `store/play-icon-512.png`, `store/feature-graphic-1024x500.png`, `store/screenshots/0*.png`. Legal drafts: `store/legal-drafts/`.
 
 ## Blockers
 | Blocker | Blocks | Owner |
 |---|---|---|
-| Policy pages not published yet: houseoftech-legal.web.app/mittuai/privacy, /terms, /payment-cancellation, /delete-account (drafts in `store/legal-drafts/mittuai/`). Privacy and deletion URLs are required by Play. | Data safety, production | Ayush |
-| Razorpay plan (trial, price, `mittuai_<price>`), webhook secret, live keys. Until then the paywall answers "Payments are busy". | Real users | Ayush |
-| Mittu's own DLT SMS template (the OTP text must match it byte for byte). Until then real numbers get no SMS; the reviewer login works without SMS. | Real users | Ayush |
-| Sign-off on the reading-scene design exception (dark, illustrated scene in an otherwise standard app). | Production | Ayush |
-| Rive file for Mittu and final card art (current: SVG stand-ins). | Production polish | Designer |
+| A new AAB with the new design (the last one, versionCode 2, has the old white design and a background-audio permission). The Expo free plan's Android builds are used up until 1 Dec 2026: upgrade the EAS plan, wait, or build on this PC. | Upload | Piyush / Ayush |
+| Policy pages not published yet: houseoftech-legal.web.app/mittuai/privacy, /terms, /payment-cancellation, /delete-account (drafts in `store/legal-drafts/mittuai/`). Play needs the privacy and deletion URLs for App content. | App content, production | Ayush |
+| Razorpay plan (trial, price, `mittuai_<price>`), webhook secret, live keys. Until then the paywall answers "Payments are busy" (the reviewer account is already subscribed). | Real users | Ayush |
+| Mittu's own DLT SMS template. Until then real numbers get no OTP; the reviewer login works without SMS. | Real users | Ayush |
+| Vertex quota for gemini-2.5-flash-tts is 10 requests/min per project (about 2 readings a minute); over it, readings use the backup voice. | Launch | Ayush |
+| Rive file for Mittu and painted card art (current: code-drawn SVG). | Production polish | Designer |
 
-## 1. Create app
+## 1. Create app (Play Console > Create app)
 - App name: `Mittu AI: Tarot Reading`
-- Package: `com.houseoftech.mittuai` (can never change after the first upload)
-- Default language: English (India) en-IN
-- App, Free (a subscription app is free to download)
-- Contact email: support@houseoftech.ai
-- Category: Entertainment
+- Default language: English (India) – en-IN
+- App or game: **App** · Free or paid: **Free** (a subscription app is free to download)
+- Declarations: Developer Program Policies ✔, US export laws ✔
+- After creating: Settings > App details: contact email support@houseoftech.ai, category **Entertainment**
+- Package `com.houseoftech.mittuai` is set by the first upload and can never change.
 
-## 2. App signing
-Accept Google-generated key. After the first upload, copy the **App signing key certificate SHA-1** from App integrity; it becomes the second Meta key hash (base64 of the SHA-1, not hex).
+## 2. Internal testing (Testing > Internal testing)
+1. **Testers** tab > Create email list `Mittu internal` > add the testers' Gmail addresses > Save. Feedback URL or email: support@houseoftech.ai.
+2. **Releases** tab > Create new release.
+3. App integrity: accept **Google-generated app signing key** (first time only).
+4. Upload the AAB (versionCode 3 or later, from `eas build -p android --profile production`).
+5. Release name: `1.0.0 (3)` (auto). Release notes:
+   ```
+   <en-IN>Meet Mittu! Ask a question, watch him pick your tarot card, and hear your reading in his parrot voice.</en-IN>
+   ```
+6. Next > Save > **Start rollout to Internal testing**.
+7. Testers tab > copy the **opt-in link** and send it to the testers (they open it once, accept, then install from Play).
+8. App integrity > copy the **App signing key certificate SHA-1** (needed later for Meta, as base64, not hex).
 
-## 3. Internal testing
-- Testers: email list `Mittu internal`; feedback email support@houseoftech.ai
-- Release notes from `play-listing.md` (no ₹ / Rs)
-- App bundle explorer > Permissions: expect INTERNET, AD_ID (once Meta is on); **no** RECORD_AUDIO (blocked in app.json), location, SMS, contacts or storage
-- Build check (guide 13): arm64-v8a + x86_64 (set in app.json); install on an x86_64 emulator and check `adb logcat` for crashes before submitting
+Checks before rollout:
+- App bundle explorer > Permissions: expect INTERNET, ACCESS_NETWORK_STATE, MODIFY_AUDIO_SETTINGS, VIBRATE (plus small library ones like WAKE_LOCK). **Not** RECORD_AUDIO, FOREGROUND_SERVICE_MEDIA_PLAYBACK, location, SMS, contacts or storage (all blocked in app.json since 2026-11-13). If FOREGROUND_SERVICE_MEDIA_PLAYBACK still shows, the AAB is the old one.
+- If AD_ID is listed, answer Advertising ID "Yes" below; without the Meta SDK it should not be there.
+- Native code: arm64-v8a + x86_64 (guide 13).
+- Play lets you roll out internal testing before the store listing is finished. If it asks for an App content item first, the answers are in section 4.
+
+## 3. Store listing (Grow > Store presence > Main store listing)
+- App name, short description, full description: copy from `store/play-listing.md` (no ₹ / Rs anywhere).
+- App icon: `store/play-icon-512.png`
+- Feature graphic: `store/feature-graphic-1024x500.png`
+- Phone screenshots (7, 1080 × 1920): `store/screenshots/01-splash.png` … `07-history.png`
+- Category Entertainment, email support@houseoftech.ai, privacy policy URL below.
 
 ## 4. App content (Policy > App content)
 - **Privacy policy:** https://houseoftech-legal.web.app/mittuai/privacy (must be live first)
-- **App access:** restricted > instructions. Name `Reviewer login`, username `9999988888`, password `123456`. Notes: "Sign-in is by mobile number and one-time code. This test number works without SMS: enter 9999988888, tap Code bhejiye, type 123456. This account already has an active subscription, so every feature is open: ask a question, watch Mittu pick a tarot card and hear the reading."
-- **Ads:** No
-- **Content rating:** "All Other App Types"; No to violence, fear, sexuality, language, drugs, crude humour, gambling, hate; users interact: No; location: No; digital purchases: Yes; generative AI (if asked): Yes, users can report every reading in the app
-- **Target audience:** 18 and over only
-- **News / Government / Financial / Health features:** No
-- **Advertising ID:** Yes, purposes Analytics and Advertising or marketing (Meta SDK). Must match Data safety, or the release gets stuck (guide 10).
+- **App access:** All or some functionality is restricted > Add instructions. Name `Reviewer login`, username `9999988888`, password `123456`. Instructions:
+  "Sign-in is by mobile number and one-time code. This test number works without SMS: open the app, tap Get Started, then Aage badhein, enter 9999988888, tap Code bhejiye and type 123456. The account already has an active subscription, so every feature is open: type a question, tap Aage badhein, then Mittu, card nikaalo! to watch Mittu pick a tarot card and hear the reading. It allows 5 readings a day."
+- **Ads:** No, my app does not contain ads
+- **Content rating** (IARC questionnaire): category "All Other App Types"; No to violence, fear, sexuality, language, controlled substances, crude humour, gambling, hate; users can interact or exchange content: No; shares location: No; digital purchases: Yes; generative AI content (if asked): Yes, and users can report every reading in the app.
+- **Target audience and content:** 18 and over only. Appeals to children: No.
+- **News app:** No · **Government app:** No · **Financial features:** none · **Health apps:** "My app does not have any health features" (Health is only a question category for entertainment readings).
+- **Advertising ID:** this build has no Meta SDK → **No**. When Meta is added (Ayush's App ID + Client Token, rebuild): change to Yes, purposes Analytics and Advertising or marketing, and update Data safety (guide 10: a mismatch blocks the release).
+- **Account deletion:** Delete account URL https://houseoftech-legal.web.app/mittuai/delete-account (Profile > Delete account opens it in the app).
 
-## 5. Data safety
-Collects data: Yes. Encrypted in transit: Yes. Users can request deletion: Yes, https://houseoftech-legal.web.app/mittuai/delete-account.
+## 5. Data safety (current build: no Meta SDK, no Pulse)
+Collects or shares data: Yes. Encrypted in transit: Yes. Users can request deletion: Yes (URL above).
 
 | Data type | Collected | Shared | Optional? | Purposes |
 |---|---|---|---|---|
 | Personal info > Name | Yes | No | Required | App functionality, Personalization, Account management |
-| Personal info > Phone number | Yes | No | Required | App functionality, Account management, Fraud prevention/security |
+| Personal info > Phone number | Yes | No | Required | App functionality, Account management, Fraud prevention, security and compliance |
 | Personal info > User IDs | Yes | No | Required | App functionality, Account management |
-| Personal info > Email address | Yes (Razorpay checkout may ask) | No | Required | App functionality, Fraud prevention/security |
-| Financial info > User payment info | Yes (in Razorpay checkout) | No | Required | App functionality, Fraud prevention/security |
-| Financial info > Purchase history | Yes | **Yes (Meta)** | Required | Collected: App functionality, Account management, Analytics. Shared: Analytics, Advertising or marketing |
+| Personal info > Email address | Yes (Razorpay checkout may ask) | No | Required | App functionality, Fraud prevention, security and compliance |
+| Financial info > User payment info | Yes (in Razorpay checkout) | No | Required | App functionality, Fraud prevention, security and compliance |
+| Financial info > Purchase history | Yes | No | Required | App functionality, Account management |
 | App activity > Other user-generated content (questions, readings, reports) | Yes | No | Required | App functionality, Personalization |
-| App activity > App interactions | Yes | **Yes (Meta)** | Required | Collected: App functionality, Analytics. Shared: Analytics, Advertising or marketing |
-| App activity > Installed apps | Yes (Razorpay checks UPI apps) | No | Required | App functionality |
-| App info and performance > Crash logs, Diagnostics | Yes | **Yes (Meta)** | Required | Analytics |
-| Device or other IDs | Yes | **Yes (Meta)** | Required | Advertising or marketing, Analytics |
-| Audio, Location, Contacts, Photos, Files, Calendar, Health, Messages, Web history, SMS, Emails | No | | | |
+| App activity > Installed apps | Yes (Razorpay checks which UPI apps are installed) | No | Required | App functionality |
+| Device or other IDs | Yes (Razorpay checkout, fraud checks) | No | Required | Fraud prevention, security and compliance |
+| Audio, Location, Contacts, Photos and videos, Files, Calendar, Health and fitness, Messages, Web browsing, App interactions, Crash logs, Diagnostics | No | | | |
 
 Notes:
 - Mittu's voice clips are generated audio, not the user's voice, so "Audio" stays No.
 - Google Cloud (Gemini on Vertex AI, Text-to-Speech, Firestore, Storage), VoicenSMS and Razorpay are service providers: "collected", not "shared".
-- Phone number stays "not shared" only if Meta **Automatic Advanced Matching is OFF**.
-- If Pulse analytics is added, update this form.
+- Share Karo uses the phone's own share sheet; the app sends nothing anywhere itself.
+- **When Meta is added**, change: Purchase history, App interactions, Crash logs, Diagnostics and Device or other IDs → collected and **shared (Meta)**, purposes Analytics, Advertising or marketing. Phone number stays "not shared" only if Meta Automatic Advanced Matching is OFF. Same for Pulse when it's wired.
 
 ## 6. After launch (guide 15)
 Tell Ayush: app name, package `com.houseoftech.mittuai`, Razorpay plan name, invoice code `MIT`, Cloud Run URL `https://mittuai-api-319635525745.asia-south1.run.app`, Firestore database `mittuai`, reviewer login 9999988888 / 123456. Add the app to the App SOP site (hot-appsop.web.app).

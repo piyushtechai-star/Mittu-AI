@@ -85,7 +85,7 @@ try:
         """Taps the centre of the element whose own text is `text` (real touch events, as on a phone)."""
         box = js(f"""(() => {{ const el = [...document.querySelectorAll('div,span,button')].find(e =>
               e.childElementCount <= 2 && e.textContent.trim() === {json.dumps(text)});
-              if (!el) return null; const r = el.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }})()""")
+              if (!el) return null; el.scrollIntoView({ block: 'center' }); const r = el.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; }})()""")
         if not box:
             raise RuntimeError(f"not found: {text}")
         for kind in ("mousePressed", "mouseReleased"):
