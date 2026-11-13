@@ -28,7 +28,7 @@ SHOTS = [
     ("03-ask", "01-home.png", "Ask Mittu anything", "Love, career, paisa, health or life"),
     ("04-picking", f"scene-{frames['picking']:03d}.png", "Mittu picks your card", "Seven cards, one beak, a little suspense"),
     ("05-speaking", f"scene-{frames['speaking']:03d}.png", "Hear it in Mittu's voice", "With subtitles, word by word"),
-    ("06-result", "04-result.png", "Your lucky colour and number", "Share your reading or hear it again"),
+    ("06-result", "04-result.png", "Lucky colour, lucky number", "Share your reading or hear it again"),
     ("07-history", "05-history.png", "Your readings, saved", "Read or replay them any time"),
 ]
 

@@ -42,7 +42,7 @@ if len(api.get("/readings").json()) < 2:
 
 # --- 2. screenshots ----------------------------------------------------------------------------
 profile_dir = Path(r"C:\Users\Piyush\tools\shots\mittu-cdpprof")
-edge = subprocess.Popen([EDGE, "--headless=new", "--disable-gpu", "--autoplay-policy=no-user-gesture-required",
+edge = subprocess.Popen([EDGE, "--headless=new", "--disable-gpu", "--mute-audio", "--autoplay-policy=no-user-gesture-required",
                          f"--remote-debugging-port={PORT}", f"--user-data-dir={profile_dir}", "--window-size=1200,1000",
                          "about:blank"])
 seq = 0
@@ -121,6 +121,7 @@ try:
     cdp("Input.insertText", text=QUESTION)
     tap_text("Love ❤️")
     js("document.activeElement && document.activeElement.blur()")
+    js("document.querySelectorAll('div').forEach(d => { if (d.scrollHeight > d.clientHeight + 20 && getComputedStyle(d).overflowY !== 'visible') d.scrollTop = 0; })")   # typing scrolled the page; show Mittu
     time.sleep(1.5)
     shot("01-home")
 
@@ -145,6 +146,10 @@ try:
     # 12 the parchment result, once Mittu has finished speaking
     wait_for("Aapka result", 90)
     time.sleep(2)
+    js("""(() => { const el = [...document.querySelectorAll('div')].find(e => e.childElementCount === 0 && e.textContent.trim() === 'Lucky colour');
+      let sc = el && el.parentElement; while (sc && !['auto', 'scroll'].includes(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
+      if (sc) sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top - sc.clientHeight * 0.3; })()""")   # only the result list scrolls
+    time.sleep(1)
     shot("04-result")
 
     for name, route, text in (("05-history", "/history", "Reading history"), ("06-profile", "/profile", "Invoices")):
