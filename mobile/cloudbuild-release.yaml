@@ -24,8 +24,14 @@ steps:
         npm ci --no-audit --no-fund --prefer-offline
         npx expo prebuild --platform android --no-install --clean
 
+        # Expo SDK 58's gradle.properties has no newline at the end: start a new line first, or the next
+        # property is glued onto `expo.inlineModules.watchedDirectories=[]` and :expo:generateInlineModules fails
+        # ("Unexpected non-whitespace character after JSON at position 2"; build 21f3e8c2, 2026-11-14).
+        echo "" >> android/gradle.properties
         # Both ABIs: Google reviews on x86_64 devices; arm64-only crashes there.
         echo "reactNativeArchitectures=arm64-v8a,x86_64" >> android/gradle.properties
+        # Show the result in the build log.
+        tail -12 android/gradle.properties
         # The 8GB build machine runs out of memory without these.
         cat >> android/gradle.properties <<'PROPS'
         org.gradle.workers.max=1
