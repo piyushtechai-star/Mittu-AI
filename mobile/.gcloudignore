@@ -1,0 +1,15 @@
+# What `gcloud builds submit .` uploads for cloudbuild-release.yaml: the app source only.
+# Cloud Build runs npm ci and expo prebuild itself, so none of these are needed (node_modules alone is hundreds of MB).
+.gcloudignore
+.git
+.gitignore
+node_modules/
+android/
+ios/
+.expo/
+dist/
+web-build/
+*.jks
+*.keystore
+*.aab
+*.apk

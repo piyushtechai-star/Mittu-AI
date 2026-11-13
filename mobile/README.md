@@ -49,3 +49,10 @@ npx --yes eas-cli@latest build --platform android --profile production          
 ```
 Set `META_APP_ID` and `META_CLIENT_TOKEN` as EAS environment variables (preview + production) once Meta is set up.
 New native modules (Rive, audio) need a new build; JS-only fixes can go out with EAS Update.
+
+**Play AAB (since 2026-11-14): Google Cloud Build, not EAS** (`cloudbuild-release.yaml`, recipe from the team; keep every
+tuning flag). One-time `tools/gcp/mittuai-build-setup.ps1` (keystore downloaded from EAS → gs://mittuai-builds, passwords
+in Secret Manager `mittuai-store-pass` / `mittuai-key-pass`), then raise `android.versionCode` in app.json and run
+`tools/gcp/mittuai-build-aab.ps1` (~20 min, ~a few rupees) → `builds/mittuai-<versionCode>.aab`. The AAB gets OTA updates
+from the `production` channel (`updates.requestHeaders` in app.json): `eas update --channel production`. Preview APKs
+still come from EAS (`eas build --profile preview`, free monthly quota).

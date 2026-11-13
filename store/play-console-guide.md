@@ -5,7 +5,7 @@ Checked against the code on 2026-11-13 (12-screen storyboard design, microphone 
 ## Blockers
 | Blocker | Blocks | Owner |
 |---|---|---|
-| A new AAB with the new design (the last one, versionCode 2, has the old white design and a background-audio permission). The Expo free plan's Android builds are used up until 1 Dec 2026: upgrade the EAS plan, wait, or build on this PC. | Upload | Piyush / Ayush |
+| A new AAB with the new design, mic and music (versionCode 3). Built on Google Cloud Build, not EAS (free builds used up): one-time `tools/gcp/mittuai-build-setup.ps1`, then `tools/gcp/mittuai-build-aab.ps1` → `builds/mittuai-3.aab`. | Upload | Piyush |
 | Policy pages not published yet: houseoftech-legal.web.app/mittuai/privacy, /terms, /payment-cancellation, /delete-account (drafts in `store/legal-drafts/mittuai/`). Play needs the privacy and deletion URLs for App content. | App content, production | Ayush |
 | Razorpay plan (trial, price, `mittuai_<price>`), webhook secret, live keys. Until then the paywall answers "Payments are busy" (the reviewer account is already subscribed). | Real users | Ayush |
 | Mittu's own DLT SMS template. Until then real numbers get no OTP; the reviewer login works without SMS. | Real users | Ayush |
@@ -24,7 +24,7 @@ Checked against the code on 2026-11-13 (12-screen storyboard design, microphone 
 1. **Testers** tab > Create email list `Mittu internal` > add the testers' Gmail addresses > Save. Feedback URL or email: support@houseoftech.ai.
 2. **Releases** tab > Create new release.
 3. App integrity: accept **Google-generated app signing key** (first time only).
-4. Upload the AAB (versionCode 3 or later, from `eas build -p android --profile production`).
+4. Upload the AAB (`builds/mittuai-3.aab` from `tools/gcp/mittuai-build-aab.ps1`; raise `android.versionCode` in `mobile/app.json` for every later upload).
 5. Release name: `1.0.0 (3)` (auto). Release notes:
    ```
    <en-IN>Meet Mittu! Ask a question, watch him pick your tarot card, and hear your reading in his parrot voice.</en-IN>

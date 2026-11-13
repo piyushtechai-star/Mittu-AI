@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.houseoftech.mittuai",
-      "versionCode": 1,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
@@ -96,7 +96,10 @@
     },
     "owner": "piyushhtechai",
     "updates": {
-      "url": "https://u.expo.dev/4e18275d-40ef-4798-9e78-73c87e93c12c"
+      "url": "https://u.expo.dev/4e18275d-40ef-4798-9e78-73c87e93c12c",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
     }
   }
 }

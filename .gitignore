@@ -12,3 +12,6 @@ prototype-web/dist/
 .claude/settings.local.json
 web-hosting/dist/
 store/screenshots/raw/
+
+# Play AABs downloaded by tools/gcp/mittuai-build-aab.ps1
+builds/

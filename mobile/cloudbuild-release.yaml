@@ -1,0 +1,118 @@
+# Production AAB for Mittu AI on Google Cloud Build (project colorjoy-app). Replaces EAS cloud builds
+# (recipe from the team, 2026-11-14). Every tuning flag below exists because a build failed without it — do not remove them.
+#
+# One-time setup: tools\gcp\mittuai-build-setup.ps1 (bucket, keystore, secrets, access; it also fills in the key alias).
+# Build (versionCode in app.json must be higher than the last one on Play):
+#   tools\gcp\mittuai-build-aab.ps1          (= gcloud builds submit --config cloudbuild-release.yaml --project=colorjoy-app --region=asia-south1 .)
+# Output: gs://mittuai-builds/app-release.aab, downloaded to builds\ by the script.
+
+steps:
+  # 1) npm ci + expo prebuild -> ./android, then patch gradle for release signing
+  - name: 'cimg/android:2024.07.1-node'
+    id: prebuild
+    entrypoint: bash
+    env:
+      - 'NPM_CONFIG_CACHE=/workspace/.npm-cache'
+      - 'HOME=/workspace/.home'
+      - 'EXPO_PUBLIC_API_URL=https://mittuai-api-319635525745.asia-south1.run.app'
+    args:
+      - -c
+      - |
+        set -euxo pipefail
+        sudo chown -R $$(id -u):$$(id -g) /workspace /builder/home || true
+        mkdir -p "$$NPM_CONFIG_CACHE" "$$HOME"
+        npm ci --no-audit --no-fund --prefer-offline
+        npx expo prebuild --platform android --no-install --clean
+
+        # Both ABIs: Google reviews on x86_64 devices; arm64-only crashes there.
+        echo "reactNativeArchitectures=arm64-v8a,x86_64" >> android/gradle.properties
+        # The 8GB build machine runs out of memory without these.
+        cat >> android/gradle.properties <<'PROPS'
+        org.gradle.workers.max=1
+        org.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -Dfile.encoding=UTF-8
+        org.gradle.parallel=false
+        org.gradle.daemon=false
+        android.enableProguardInReleaseBuilds=false
+        android.enableShrinkResourcesInReleaseBuilds=false
+        PROPS
+
+        # Expo's template signs release with the DEBUG key. Add a real release config.
+        python3 - <<'PY'
+        import re, pathlib
+        p = pathlib.Path("android/app/build.gradle")
+        s = p.read_text()
+        s = re.sub(r"(signingConfigs\s*\{)", r"""\1
+            release {
+                if (project.hasProperty('UPLOAD_STORE_FILE')) {
+                    storeFile file(project.property('UPLOAD_STORE_FILE'))
+                    storePassword project.property('UPLOAD_STORE_PASSWORD')
+                    keyAlias project.property('UPLOAD_KEY_ALIAS')
+                    keyPassword project.property('UPLOAD_KEY_PASSWORD')
+                }
+            }""", s, count=1)
+        occ = list(re.finditer(r"signingConfig\s*=?\s*signingConfigs\.debug", s))
+        assert len(occ) >= 2, f"Expected >=2 signingConfigs.debug, found {len(occ)}"
+        m = occ[1]  # 2nd one = buildTypes.release (1st is debug, keep it)
+        s = s[:m.start()] + "signingConfig = signingConfigs.release" + s[m.end():]
+        p.write_text(s)
+        print("patched build.gradle: release -> signingConfigs.release")
+        PY
+
+        # Fail fast if the package doesn't match the Play listing.
+        grep -q 'applicationId .com.houseoftech.mittuai.' android/app/build.gradle \
+          || { echo "FATAL: wrong applicationId"; grep applicationId android/app/build.gradle; exit 1; }
+
+  # 2) fetch the upload keystore (the one downloaded from EAS)
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: keystore
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -eu
+        mkdir -p /workspace/keys
+        gsutil cp gs://mittuai-builds/keys/upload.jks /workspace/keys/upload.jks
+
+  # 3) gradle bundleRelease -> signed AAB
+  - name: 'cimg/android:2024.07.1-node'
+    id: gradle
+    entrypoint: bash
+    secretEnv: ['STORE_PASS', 'KEY_PASS']
+    env:
+      - 'HOME=/workspace/.home'
+      - 'GRADLE_USER_HOME=/workspace/.gradle'
+      - 'CMAKE_BUILD_PARALLEL_LEVEL=1'   # else reanimated C++ compile OOM-kills gradle
+      - 'EXPO_PUBLIC_API_URL=https://mittuai-api-319635525745.asia-south1.run.app'
+    args:
+      - -c
+      - |
+        set -eu
+        sudo chown -R $$(id -u):$$(id -g) /workspace /builder/home || true
+        mkdir -p "$$HOME" "$$GRADLE_USER_HOME"
+        sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
+        cd android && chmod +x ./gradlew
+        ./gradlew bundleRelease --no-daemon --stacktrace \
+          -PUPLOAD_STORE_FILE=/workspace/keys/upload.jks \
+          -PUPLOAD_STORE_PASSWORD="$$STORE_PASS" \
+          -PUPLOAD_KEY_ALIAS=MY_KEY_ALIAS \
+          -PUPLOAD_KEY_PASSWORD="$$KEY_PASS"
+        cp app/build/outputs/bundle/release/app-release.aab /workspace/app-release.aab
+        ls -lh /workspace/app-release.aab
+
+artifacts:
+  objects:
+    location: 'gs://mittuai-builds/'
+    paths: ['/workspace/app-release.aab']
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/colorjoy-app/secrets/mittuai-store-pass/versions/latest
+      env: 'STORE_PASS'
+    - versionName: projects/colorjoy-app/secrets/mittuai-key-pass/versions/latest
+      env: 'KEY_PASS'
+
+options:
+  machineType: 'E2_HIGHCPU_8'   # HIGHCPU_32 is quota-blocked in asia-south1
+  diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
+timeout: 3600s
