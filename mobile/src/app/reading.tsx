@@ -9,7 +9,7 @@ import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, {
-  Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming, type SharedValue,
+  Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -162,6 +162,7 @@ export default function ReadingScreen() {
 
   const mx = useSharedValue(0), my = useSharedValue(0), mrot = useSharedValue(0), mscale = useSharedValue(1);
   const dim = useSharedValue(0);
+  const perchO = useSharedValue(1);   // the empty perch fades once Mittu has left it (it would cross the subtitles)
   const cards = [useCardMotion(), useCardMotion(), useCardMotion(), useCardMotion(), useCardMotion(), useCardMotion(), useCardMotion()];
 
   const run = useRef({ cancelled: false, timers: [] as ReturnType<typeof setTimeout>[], flaps: undefined as ReturnType<typeof setInterval> | undefined });
@@ -254,6 +255,7 @@ export default function ReadingScreen() {
     });
     mx.value = L.land.x; my.value = L.land.y; mrot.value = 0; mscale.value = 0.85;
     dim.value = 0.6;
+    perchO.value = 0;
     face(-1);
     setMode('idle');
     setPerched(true);
@@ -280,9 +282,10 @@ export default function ReadingScreen() {
     setFlute(true);
     await wait(1800);
     setFlute(false);
-    // 2) take off in an arc, feathers fall
+    // 2) take off in an arc, feathers fall; the empty perch fades away
     setMode('fly');
     flaps(170);
+    perchO.value = withDelay(500, withTiming(0, { duration: 900 }));
     const arc = [[L.w * 0.74, L.perch.y - L.h * 0.2], [L.w * 0.86, L.h * 0.3], [L.w * 0.55, L.h * 0.1], [L.w * 0.22, L.h * 0.15], [L.w * 0.5, L.h * 0.2]];
     const seg = 1600 / arc.length;
     mx.value = withSequence(...arc.map(([x]) => withTiming(x, { duration: seg, easing: Easing.inOut(Easing.sin) })));
@@ -456,6 +459,7 @@ export default function ReadingScreen() {
     setPerched(false);
     if (r) setResult(r);
     setPhase('message');
+    perchO.value = withTiming(1, { duration: 500 });   // Mittu flies back to it
     cards.forEach((c) => { c.opacity.value = withTiming(0, { duration: 400 }); });
     if (L) {
       setMode('fly');
@@ -496,6 +500,7 @@ export default function ReadingScreen() {
   }
 
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
+  const perchStyle = useAnimatedStyle(() => ({ opacity: perchO.value }));
   const reading = result?.kind === 'reading' ? result : null;
   const words = useMemo(() => (reading ? reading.text.split(/\s+/) : []), [reading]);
   const lucky = useMemo(() => (reading ? luckyOf(reading.text) : { color: null, number: null }), [reading]);
@@ -510,7 +515,9 @@ export default function ReadingScreen() {
         <>
           <NightBackdrop width={L.w} height={L.h} mandalaY={L.final.y} still={still} />
           <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(4,3,20,0.55)' }, dimStyle]} />
-          <Perch x={L.perch.x} rodY={L.rodY} />
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, perchStyle]}>
+            <Perch x={L.perch.x} rodY={L.rodY} />
+          </Animated.View>
           {cards.map((c, i) => (
             <SceneCard key={i} m={c} L={L} z={i === slot && phase !== 'intro' ? 22 : 10 + (i >= 3 ? 2 : 0) + (i === slot ? 5 : 0)}>
               <FlipCard card={i === slot && reading ? reading.card : null} reversed={reading?.orientation === 'reversed'} width={L.cw} flip={c.flip} />
@@ -537,7 +544,7 @@ export default function ReadingScreen() {
               {speaking ? (
                 <>
                   <Subtitles words={words} current={wordIdx} />
-                  <Pressable accessibilityRole="button" onPress={() => { stopSpeech.current?.(); stopVoice(); }} style={[styles.ghostBtn, { flex: 0 }]}>
+                  <Pressable accessibilityRole="button" onPress={() => { stopSpeech.current?.(); stopVoice(); }} style={[styles.ghostBtn, { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' }]}>
                     <Ionicons name="stop" size={17} color={scene.goldSoft} />
                     <Text style={styles.ghostText}>Roko, result dikhao</Text>
                   </Pressable>

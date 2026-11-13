@@ -15,6 +15,9 @@ import { initSound, isMusicOn, pauseMusic, setMusic } from '@/lib/sound';
 import { listen, voiceSupported } from '@/lib/voice';
 import { colors, scene, serif, space, type } from '@/theme';
 
+// react-native-web's Switch colours its thumb with activeThumbColor (not in the native typings).
+const WEB_THUMB = { activeThumbColor: scene.goldSoft } as object;
+
 export default function Home() {
   const { me, refresh } = useAuth();
   const [question, setQuestion] = useState('');
@@ -92,12 +95,12 @@ export default function Home() {
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: space.xl, gap: space.md }}>
         <Text style={[type.subhead, { flex: 1, color: colors.text }]}>Background music</Text>
         <Switch value={music} onValueChange={(v) => { setMusicState(v); setMusic(v); }}
-          trackColor={{ true: colors.accent, false: colors.border }} thumbColor={music ? scene.goldSoft : '#BDB5A6'} activeThumbColor={scene.goldSoft} />
+          trackColor={{ true: colors.accent, false: colors.border }} thumbColor={music ? scene.goldSoft : '#BDB5A6'} {...WEB_THUMB} />
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: space.md, gap: space.md }}>
         <Text style={[type.subhead, { flex: 1, color: colors.text }]}>Skip animation</Text>
         <Switch value={skip} onValueChange={(v) => { setSkip(v); void setSkipAnimation(v); }}
-          trackColor={{ true: colors.accent, false: colors.border }} thumbColor={skip ? scene.goldSoft : '#BDB5A6'} activeThumbColor={scene.goldSoft} />
+          trackColor={{ true: colors.accent, false: colors.border }} thumbColor={skip ? scene.goldSoft : '#BDB5A6'} {...WEB_THUMB} />
       </View>
       <Text style={[type.footnote, { textAlign: 'center', marginTop: space.xl }]}>Sirf manoranjan ke liye</Text>
     </Screen>
