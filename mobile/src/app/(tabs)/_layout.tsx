@@ -11,7 +11,8 @@ export default function TabsLayout() {
       tabBarStyle: { backgroundColor: '#0E0A2E', borderTopColor: colors.border },
       sceneStyle: { backgroundColor: colors.bg },
     }}>
-      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" color={color as string} size={size} /> }} />
+      <Tabs.Screen name="home" options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="sparkles-outline" color={color as string} size={size} /> }} />
+      <Tabs.Screen name="history" options={{ title: 'History', tabBarIcon: ({ color, size }) => <Ionicons name="time-outline" color={color as string} size={size} /> }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person-circle-outline" color={color as string} size={size} /> }} />
     </Tabs>
   );

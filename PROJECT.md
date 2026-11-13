@@ -7,8 +7,11 @@ The user asks a question and picks a category (Love, Career, Paisa, Health, Gene
 
 ## Core screens
 Design: the HouseofTech 12-screen storyboard (2026-11-12). Every screen is deep navy with gold, gold dust and faint mandalas.
-1. **Splash**: golden birdcage with Mittu, "Mittu AI", Get Started.  2. **Meet Mittu**: Mittu in a red pagdi on his perch, "Suno suno, aapka astrologer haazir hai!", then phone login.
-- **Home** (3, 4): "Question & Categories" (coloured chips: Love, Career, Paisa, Health, General), the glowing "Mittu, card nikaalo!" button, "Let's Go!", readings left today, Skip-animation toggle.
+Flow on every launch: 1 Splash → 2 Meet Mittu → (login for new users) → 3 Ask → 4 Let's Go → 5-12 reading. Tabs: Home, History, Profile.
+1. **Splash** (`/`): golden birdcage with Mittu, "Mittu AI", Get Started.  2. **Meet Mittu** (`/meet`): Mittu in a red pagdi, "Suno suno, aapka astrologer haazir hai!", then Ask (signed in) or phone login.
+3. **Ask** (Home tab, `/home`): "Question & Categories" (coloured chips: Love, Career, Paisa, Health, General), readings left today, Skip-animation toggle, Aage badhein.
+4. **Let's Go** (`/letsgo`): the question and category, the glowing "Mittu, card nikaalo!" button, "Let's Go!".
+- **History** tab: past readings, replay voice (7 days), Report.
 - **Reading** (5-12), about 9 s and skippable: bansuri zoom → take-off → 7 cards in two rows → hover (cards glow) → pick → 3D flip with a gold swirl → Mittu lands on the rod: "Suno suno… Mittu ne nikaala hai … ka card!", voice + subtitles → parchment scroll with the reading, lucky colour and number, Ek aur card, Share Karo, Replay Voice, "Sirf manoranjan ke liye" and Report. Mute and close.
 - **Profile**: name, plan, reading history, invoices, help, policy links, sign out. No cancel button, no delete button (both explained in the policies).
 - Onboarding (fixed): OTP → Paywall → Name (required) → Home.

@@ -1,4 +1,4 @@
-// 1. Splash (storyboard): golden birdcage with Mittu, "Mittu AI", Get Started → 2. Meet Mittu.
+// 1. Splash (storyboard): shown on every app launch, signed in or not. Golden birdcage, "Mittu AI", Get Started → 2. Meet Mittu.
 import { router } from 'expo-router';
 import { Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -20,7 +20,7 @@ export default function Splash() {
           textShadowColor: 'rgba(212,175,55,0.6)', textShadowRadius: 14 }}>Mittu AI</Text>
         <Text style={[type.callout, { color: colors.textSecondary, textAlign: 'center', marginTop: space.xs }]}>Mittu bataega aapka{'\n'}bhavishya 🦜</Text>
         <View style={{ marginTop: space.xl, minWidth: 200 }}>
-          <Button title="Get Started" iconRight="arrow-forward" onPress={() => { void initSound(); router.push('/auth/meet'); }} />
+          <Button title="Get Started" iconRight="arrow-forward" onPress={() => { void initSound(); router.push('/meet'); }} />
         </View>
       </View>
       <Text style={[type.footnote, { textAlign: 'center', marginBottom: space.md }]}>Sirf manoranjan ke liye</Text>

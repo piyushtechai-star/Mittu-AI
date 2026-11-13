@@ -9,12 +9,13 @@ voice or payment secrets.
 src/
   app/                   Screens (Expo Router: every file is a route)
     _layout.tsx          Root: shows only the screens allowed for the user's step (GET /me → next): OTP → paywall → name → home
-    auth/                Splash (birdcage), Meet Mittu, phone, OTP
+    index.tsx, meet.tsx  1 Splash (birdcage) and 2 Meet Mittu: open the app on every launch, signed in or not
+    auth/                Phone, OTP
+    letsgo.tsx           4 Let's Go: the question + glowing "Mittu, card nikaalo!" → reading
     paywall.tsx          Razorpay UPI Autopay; prices and daily limit from /config; access only via the webhook
     name.tsx             Required name (spoken by Mittu, printed on invoices)
-    (tabs)/              Home (Question & Categories + "Mittu, card nikaalo!" + Let's Go!), Profile
+    (tabs)/              home (3 Ask: Question & Categories), history, profile
     reading.tsx          Storyboard 5-12: bansuri zoom → fly → two-row spread → pick → flip + swirl → rod → voice → parchment
-    history.tsx          Past readings (text; voice while the clip exists, 7 days), Report on each
     invoices.tsx         GST invoices (HTML from the API → PDF on the phone)
   components/
     Mittu.tsx            Mittu (SVG layers + Reanimated): idle/fly/hover/pick/land/talk, optional pagdi. STAND-IN for the Rive file

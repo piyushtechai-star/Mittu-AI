@@ -39,7 +39,7 @@ export default function History() {
 
   return (
     <Screen>
-      <Header title="Reading history" />
+      <Header title="Reading history" back={false} />
       {error ? <ErrorView onRetry={reload} /> : !data ? <Loading /> : data.length === 0 ? (
         <Text style={[type.subhead, { textAlign: 'center', marginTop: space.xl }]}>Abhi tak koi reading nahi. Mittu se poochiye!</Text>
       ) : (

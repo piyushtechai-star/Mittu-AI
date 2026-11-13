@@ -395,7 +395,7 @@ export default function ReadingScreen() {
   // ---------------------------------------------------------------- start
   useEffect(() => {
     if (!input) {
-      router.replace('/');
+      router.replace('/home');
       return;
     }
     track('reading_started', { category: input.category });

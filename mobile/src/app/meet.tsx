@@ -1,4 +1,4 @@
-// 2. Meet Mittu (storyboard): Mittu in his red pagdi on the perch greets the user, then → phone login.
+// 2. Meet Mittu (storyboard): Mittu in his red pagdi greets the user, then → 3. Ask (signed in) or phone login.
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
@@ -8,12 +8,15 @@ import { Sparkles } from '@/components/Art';
 import { Mittu } from '@/components/Mittu';
 import { Perch } from '@/components/Scene';
 import { Button, Screen } from '@/components/ui';
+import { useAuth } from '@/context/AuthContext';
 import { initSound, play } from '@/lib/sound';
 import { scene, serif, space, type } from '@/theme';
 
 const S = 210;
 
 export default function MeetMittu() {
+  const { signedIn, me } = useAuth();
+  const first = me?.name?.split(' ')[0];
   const still = !!useReducedMotion();
   const [talking, setTalking] = useState(false);
   useEffect(() => {
@@ -24,7 +27,8 @@ export default function MeetMittu() {
     return () => timers.forEach(clearTimeout);
   }, []);
   return (
-    <Screen scroll={false} footer={<Button title="Aage badhein" iconRight="arrow-forward" onPress={() => router.push('/auth/phone')} />}>
+    <Screen scroll={false} footer={<Button title={signedIn ? 'Sawaal poochiye' : 'Aage badhein'} iconRight="arrow-forward"
+      onPress={() => (signedIn ? router.replace('/home') : router.push('/auth/phone'))} />}>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <View style={{ width: 240, height: S + 120, alignItems: 'center' }}>
           <Perch x={120} rodY={S * 0.85} scale={1} />
@@ -36,7 +40,7 @@ export default function MeetMittu() {
           Suno suno, aapka{'\n'}astrologer haazir hai!
         </Text>
         <Text style={[type.subhead, { textAlign: 'center', marginTop: space.md, maxWidth: 300 }]}>
-          Apna sawaal poochiye. Mittu tarot card nikaal kar aapka bhavishya sunayega.
+          {first ? `Namaste ${first}! ` : ''}Apna sawaal poochiye. Mittu tarot card nikaal kar aapka bhavishya sunayega.
         </Text>
       </View>
     </Screen>

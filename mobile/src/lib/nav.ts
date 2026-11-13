@@ -7,12 +7,21 @@ import type { Category } from '@/api/mittu';
 // not spend one of the user's readings by itself.
 let pending: { question: string; category: Category } | null = null;
 
-export function startReading(question: string, category: Category) {
+/** Screen 3 → screen 4: remember the question and open the Let's Go screen. */
+export function chooseQuestion(question: string, category: Category) {
   pending = { question, category };
-  router.push('/reading');
+  router.push('/letsgo');
 }
 
-/** The question startReading() was called with, once. */
+/** The question waiting on the Let's Go screen (not consumed). */
+export const peekPendingReading = () => pending;
+
+/** Screen 4 → the reading scene (5-12). Replaces Let's Go, so "back" from the reading lands on Ask. */
+export function startReading() {
+  router.replace('/reading');
+}
+
+/** The question chooseQuestion() stored, once (the reading screen takes it). */
 export function takePendingReading() {
   const p = pending;
   pending = null;
