@@ -1,7 +1,8 @@
-// 3. Input Sawaal (storyboard): question + coloured categories → 4. Let's Go screen.
+// 3. Input Sawaal (storyboard): question (typed or spoken) + coloured categories → 4. Let's Go screen.
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Switch, Text, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, Switch, Text, useWindowDimensions, View } from 'react-native';
 
 import type { Category } from '@/api/mittu';
 import { Mittu } from '@/components/Mittu';
@@ -10,7 +11,8 @@ import { Perch } from '@/components/Scene';
 import { Button, Card, Chips, Field, Screen } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
 import { chooseQuestion, getSkipAnimation, setSkipAnimation } from '@/lib/nav';
-import { initSound } from '@/lib/sound';
+import { initSound, isMusicOn, pauseMusic, setMusic } from '@/lib/sound';
+import { listen, voiceSupported } from '@/lib/voice';
 import { colors, scene, serif, space, type } from '@/theme';
 
 export default function Home() {
@@ -18,11 +20,31 @@ export default function Home() {
   const [question, setQuestion] = useState('');
   const [category, setCategory] = useState<Category>('general');
   const [skip, setSkip] = useState(false);
+  const [music, setMusicState] = useState(true);
+  const [listening, setListening] = useState(false);
+  const stopListening = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    void initSound();   // preload while the user types
+    void initSound().then(() => setMusicState(isMusicOn()));   // preload while the user types
     getSkipAnimation().then(setSkip);
+    return () => stopListening.current?.();
   }, []);
+
+  // Speak your question: the words appear in the box as you talk; the music pauses meanwhile. Only text is kept.
+  const toggleMic = () => {
+    if (listening) {
+      stopListening.current?.();
+      return;
+    }
+    const before = question.trim();
+    setListening(true);
+    pauseMusic(true);
+    stopListening.current = listen((said) => setQuestion(before ? `${before} ${said}` : said), () => {
+      stopListening.current = null;
+      setListening(false);
+      pauseMusic(false);
+    });
+  };
   // Back from a reading: today's count changed.
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
 
@@ -44,8 +66,19 @@ export default function Home() {
 
       <Card style={{ marginTop: space.xl, gap: space.md }}>
         <Text style={{ fontFamily: serif, fontSize: 18, fontWeight: '700', color: scene.goldSoft }}>Question & Categories</Text>
-        <Field value={question} onChangeText={setQuestion} placeholder="Apna sawaal poochiye..." multiline maxLength={300}
-          style={{ minHeight: 84, paddingTop: 14, textAlignVertical: 'top' }} />
+        <View>
+          <Field value={question} onChangeText={setQuestion} multiline maxLength={300}
+            placeholder={listening ? 'Boliye… Mittu sun raha hai 🦜' : voiceSupported ? 'Apna sawaal poochiye... ya mic dabaiye' : 'Apna sawaal poochiye...'}
+            style={{ minHeight: 84, paddingTop: 14, textAlignVertical: 'top', paddingRight: voiceSupported ? 56 : undefined }} />
+          {voiceSupported ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={listening ? 'Stop listening' : 'Speak your question'}
+              accessibilityState={{ selected: listening }} hitSlop={6} onPress={toggleMic}
+              style={{ position: 'absolute', right: 10, bottom: 10, width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+                backgroundColor: listening ? '#C93A3A' : colors.accentSoft, borderWidth: 1, borderColor: listening ? '#FF8A8A' : colors.border }}>
+              <Ionicons name={listening ? 'stop' : 'mic'} size={20} color={listening ? '#FFFFFF' : scene.goldSoft} />
+            </Pressable>
+          ) : null}
+        </View>
         <Chips options={CATEGORIES} value={category} onChange={setCategory} />
       </Card>
 
@@ -57,9 +90,14 @@ export default function Home() {
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: space.xl, gap: space.md }}>
+        <Text style={[type.subhead, { flex: 1, color: colors.text }]}>Background music</Text>
+        <Switch value={music} onValueChange={(v) => { setMusicState(v); setMusic(v); }}
+          trackColor={{ true: colors.accent, false: colors.border }} thumbColor={music ? scene.goldSoft : '#BDB5A6'} activeThumbColor={scene.goldSoft} />
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: space.md, gap: space.md }}>
         <Text style={[type.subhead, { flex: 1, color: colors.text }]}>Skip animation</Text>
         <Switch value={skip} onValueChange={(v) => { setSkip(v); void setSkipAnimation(v); }}
-          trackColor={{ true: colors.accent, false: colors.border }} thumbColor={skip ? scene.goldSoft : '#BDB5A6'} />
+          trackColor={{ true: colors.accent, false: colors.border }} thumbColor={skip ? scene.goldSoft : '#BDB5A6'} activeThumbColor={scene.goldSoft} />
       </View>
       <Text style={[type.footnote, { textAlign: 'center', marginTop: space.xl }]}>Sirf manoranjan ke liye</Text>
     </Screen>

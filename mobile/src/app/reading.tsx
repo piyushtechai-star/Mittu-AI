@@ -24,7 +24,7 @@ import { useAuth } from '@/context/AuthContext';
 import { track } from '@/lib/integrations';
 import { getSkipAnimation, takePendingReading } from '@/lib/nav';
 import {
-  initSound, isMuted, onMuteChange, play, playVoice, setMuted, speakOnDevice, startAmbient, stopAmbient, stopVoice,
+  initSound, isMuted, leaveScene, onMuteChange, play, playVoice, setMuted, speakOnDevice, startAmbient, stopVoice,
 } from '@/lib/sound';
 import { scene, serif, space, type } from '@/theme';
 
@@ -411,7 +411,7 @@ export default function ReadingScreen() {
       clearInterval(R.flaps);
       stopSpeech.current?.();
       stopVoice();
-      stopAmbient();
+      leaveScene();
       off();
     };
   }, [input]);

@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { BackgroundMusic } from '@/components/BackgroundMusic';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { colors } from '@/theme';
 
@@ -54,6 +55,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <StatusBar style="light" />
+          <BackgroundMusic />
           <Routes />
         </AuthProvider>
       </SafeAreaProvider>

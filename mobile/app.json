@@ -20,7 +20,6 @@
       "predictiveBackGestureEnabled": false,
       "allowBackup": false,
       "blockedPermissions": [
-        "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW",
@@ -64,6 +63,16 @@
               "x86_64"
             ]
           }
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Mittu AI uses the microphone so you can speak your question to Mittu.",
+          "speechRecognitionPermission": "Mittu AI turns your voice into text so you can ask your question by speaking.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ]
     ],

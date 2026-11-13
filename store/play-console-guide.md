@@ -1,6 +1,6 @@
 # Mittu AI: Play Console answers (first upload, internal testing)
 
-Checked against the code on 2026-11-13 (12-screen storyboard design, no Meta SDK yet). Store text: `store/play-listing.md`. Graphics: `store/play-icon-512.png`, `store/feature-graphic-1024x500.png`, `store/screenshots/0*.png`. Legal drafts: `store/legal-drafts/`.
+Checked against the code on 2026-11-13 (12-screen storyboard design, microphone voice input, background music, no Meta SDK yet). Store text: `store/play-listing.md`. Graphics: `store/play-icon-512.png`, `store/feature-graphic-1024x500.png`, `store/screenshots/0*.png`. Legal drafts: `store/legal-drafts/`.
 
 ## Blockers
 | Blocker | Blocks | Owner |
@@ -34,7 +34,7 @@ Checked against the code on 2026-11-13 (12-screen storyboard design, no Meta SDK
 8. App integrity > copy the **App signing key certificate SHA-1** (needed later for Meta, as base64, not hex).
 
 Checks before rollout:
-- App bundle explorer > Permissions: expect INTERNET, ACCESS_NETWORK_STATE, MODIFY_AUDIO_SETTINGS, VIBRATE (plus small library ones like WAKE_LOCK). **Not** RECORD_AUDIO, FOREGROUND_SERVICE_MEDIA_PLAYBACK, location, SMS, contacts or storage (all blocked in app.json since 2026-11-13). If FOREGROUND_SERVICE_MEDIA_PLAYBACK still shows, the AAB is the old one.
+- App bundle explorer > Permissions: expect INTERNET, ACCESS_NETWORK_STATE, **RECORD_AUDIO** (speak your question), MODIFY_AUDIO_SETTINGS, VIBRATE (plus small library ones like WAKE_LOCK). **Not** FOREGROUND_SERVICE_MEDIA_PLAYBACK, location, SMS, contacts or storage (blocked in app.json). If FOREGROUND_SERVICE_MEDIA_PLAYBACK shows, the AAB is the old one; if RECORD_AUDIO is missing, it was built before voice input.
 - If AD_ID is listed, answer Advertising ID "Yes" below; without the Meta SDK it should not be there.
 - Native code: arm64-v8a + x86_64 (guide 13).
 - Play lets you roll out internal testing before the store listing is finished. If it asks for an App content item first, the answers are in section 4.
@@ -71,10 +71,11 @@ Collects or shares data: Yes. Encrypted in transit: Yes. Users can request delet
 | App activity > Other user-generated content (questions, readings, reports) | Yes | No | Required | App functionality, Personalization |
 | App activity > Installed apps | Yes (Razorpay checks which UPI apps are installed) | No | Required | App functionality |
 | Device or other IDs | Yes (Razorpay checkout, fraud checks) | No | Required | Fraud prevention, security and compliance |
-| Audio, Location, Contacts, Photos and videos, Files, Calendar, Health and fitness, Messages, Web browsing, App interactions, Crash logs, Diagnostics | No | | | |
+| Audio > Voice or sound recordings | Yes, **processed ephemerally** (spoken question turned into text by the phone's speech service; no audio stored or sent to our server) | No | **Optional** (typing works too) | App functionality |
+| Location, Contacts, Photos and videos, Files, Calendar, Health and fitness, Messages, Web browsing, App interactions, Crash logs, Diagnostics | No | | | |
 
 Notes:
-- Mittu's voice clips are generated audio, not the user's voice, so "Audio" stays No.
+- Audio: only the optional mic input counts (processed ephemerally, as in Naksh). Mittu's own voice clips are generated audio, not user data. Background music is a bundled file.
 - Google Cloud (Gemini on Vertex AI, Text-to-Speech, Firestore, Storage), VoicenSMS and Razorpay are service providers: "collected", not "shared".
 - Share Karo uses the phone's own share sheet; the app sends nothing anywhere itself.
 - **When Meta is added**, change: Purchase history, App interactions, Crash logs, Diagnostics and Device or other IDs → collected and **shared (Meta)**, purposes Analytics, Advertising or marketing. Phone number stays "not shared" only if Meta Automatic Advanced Matching is OFF. Same for Pulse when it's wired.

@@ -1,5 +1,7 @@
 // Sound (guide 07): squawk, chime, wing flap, card shuffle and the ambient santoor loop are small files bundled in the
-// app (assets/sounds, made by tools/render-sounds.mjs). The ambient ducks while Mittu speaks. Mute is remembered.
+// app (assets/sounds, made by tools/render-sounds.mjs). The santoor is the app's background music on every screen
+// (Home > Background music turns it off); it ducks while Mittu speaks and pauses while the mic listens or the app is
+// in the background. Mute and the music setting are remembered.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
@@ -18,6 +20,8 @@ const AMBIENT = 0.35;
 const DUCKED = 0.08;
 let muted = false;
 let ducked = false;
+let music = true;        // background music setting
+let paused = false;      // app in background, or the mic is listening
 let ready: Promise<void> | null = null;
 const players: Partial<Record<keyof typeof FILES, AudioPlayer>> = {};
 let voice: AudioPlayer | null = null;
@@ -31,6 +35,7 @@ export function initSound() {
   ready ??= (async () => {
     await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     muted = (await AsyncStorage.getItem('mittuai.muted').catch(() => null)) === '1';
+    music = (await AsyncStorage.getItem('mittuai.music').catch(() => null)) !== '0';
   })();
   return ready;
 }
@@ -67,6 +72,33 @@ export function startAmbient() {
     p.volume = muted ? 0 : AMBIENT;
     p.play();
   } catch {}
+}
+
+export const isMusicOn = () => music;
+
+/** Background music on every screen: starts the santoor loop if the setting is on. */
+export function startMusic() {
+  if (music && !paused) startAmbient();
+}
+
+export function setMusic(on: boolean) {
+  music = on;
+  AsyncStorage.setItem('mittuai.music', on ? '1' : '0').catch(() => {});
+  if (on) startMusic();
+  else stopAmbient();
+}
+
+/** Pauses the music without forgetting it (app in the background, mic listening); `false` resumes. */
+export function pauseMusic(on: boolean) {
+  paused = on;
+  if (on) {
+    try { players.ambient?.pause(); } catch {}
+  } else startMusic();
+}
+
+/** The reading scene always has the santoor; when it closes, keep it only if background music is on. */
+export function leaveScene() {
+  if (!music) stopAmbient();
 }
 
 export function stopAmbient() {
