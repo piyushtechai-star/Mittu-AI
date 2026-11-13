@@ -99,13 +99,23 @@ try:
         document.head.appendChild(s);
       });""")
     cdp("Emulation.setDeviceMetricsOverride", width=360, height=640, deviceScaleFactor=3, mobile=True)
-    cdp("Page.navigate", url=WEB + "/auth")
+    cdp("Page.navigate", url=WEB + "/")
     time.sleep(6)
     js(f"localStorage.setItem('mittuai.token', {json.dumps(token)}); localStorage.setItem('mittuai.muted', '0'); localStorage.setItem('mittuai.skipAnim', '0')")
 
-    # Home with a question typed and Love chosen
+    # 1 Splash and 2 Meet Mittu (open the app on every launch)
     cdp("Page.navigate", url=WEB + "/")
-    wait_for("Mittu, card nikaalo!")
+    wait_for("Get Started")
+    time.sleep(2)
+    shot("00-splash")
+    tap_text("Get Started")
+    wait_for("Sawaal poochiye")
+    time.sleep(2.5)
+    shot("00-meet")
+    tap_text("Sawaal poochiye")
+
+    # 3 Ask, with a question typed and Love chosen
+    wait_for("Question & Categories")
     time.sleep(2)
     js("document.querySelector('textarea').focus()")
     cdp("Input.insertText", text=QUESTION)
@@ -114,7 +124,11 @@ try:
     time.sleep(1.5)
     shot("01-home")
 
-    # The reading scene: a burst of frames from take-off to Mittu speaking
+    # 4 Let's Go, then the reading scene: a burst of frames from the bansuri zoom to Mittu speaking
+    tap_text("Aage badhein")
+    wait_for("Let's Go!")
+    time.sleep(1.5)
+    shot("01-letsgo")
     tap_text("Mittu, card nikaalo!")
     t0 = time.time()
     n = 0
@@ -123,11 +137,15 @@ try:
         time.sleep(0.45)
         n += 1
         shot(f"scene-{n:03d}")
-        if revealed_at is None and js("document.body.innerText.includes('Naya sawaal')"):
+        if revealed_at is None and js("document.body.innerText.includes('Mittu ne nikaala hai')"):
             revealed_at = time.time()
         if revealed_at and time.time() - revealed_at > 9:
             break
     print(f"scene: {n} frames, revealed after {revealed_at - t0 if revealed_at else -1:.1f}s")
+    # 12 the parchment result, once Mittu has finished speaking
+    wait_for("Aapka result", 90)
+    time.sleep(2)
+    shot("04-result")
 
     for name, route, text in (("05-history", "/history", "Reading history"), ("06-profile", "/profile", "Invoices")):
         cdp("Page.navigate", url=WEB + route)
