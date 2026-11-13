@@ -94,7 +94,7 @@ steps:
         ./gradlew bundleRelease --no-daemon --stacktrace \
           -PUPLOAD_STORE_FILE=/workspace/keys/upload.jks \
           -PUPLOAD_STORE_PASSWORD="$$STORE_PASS" \
-          -PUPLOAD_KEY_ALIAS=MY_KEY_ALIAS \
+          -PUPLOAD_KEY_ALIAS=5b82c63bb70ffc5a6fb87c93bec86a96 \
           -PUPLOAD_KEY_PASSWORD="$$KEY_PASS"
         cp app/build/outputs/bundle/release/app-release.aab /workspace/app-release.aab
         ls -lh /workspace/app-release.aab
