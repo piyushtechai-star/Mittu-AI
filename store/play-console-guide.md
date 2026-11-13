@@ -49,7 +49,7 @@ Checks before rollout:
 ## 4. App content (Policy > App content)
 - **Privacy policy:** https://houseoftech-legal.web.app/mittuai/privacy (must be live first)
 - **App access:** All or some functionality is restricted > Add instructions. Name `Reviewer login`, username `9999988888`, password `123456`. Instructions:
-  "Sign-in is by mobile number and one-time code. This test number works without SMS: open the app, tap Get Started, then Aage badhein, enter 9999988888, tap Code bhejiye and type 123456. The account already has an active subscription, so every feature is open: type a question, tap Aage badhein, then Mittu, card nikaalo! to watch Mittu pick a tarot card and hear the reading. It allows 5 readings a day."
+  "Sign-in is by mobile number and one-time code. This test number works without SMS: open the app, tap Get Started, then Aage badhein, enter 9999988888, tap Code bhejiye and type 123456. On first sign-in the app asks for a date of birth (the app is 18+ only): enter any adult date such as 01 / 01 / 1990; time, city and gender are optional. The account already has an active subscription, so every feature is open: type or speak a question, tap Aage badhein, then Mittu, card nikaalo! to watch Mittu pick a tarot card and hear the reading. It allows 5 readings a day."
 - **Ads:** No, my app does not contain ads
 - **Content rating** (IARC questionnaire): category "All Other App Types"; No to violence, fear, sexuality, language, controlled substances, crude humour, gambling, hate; users can interact or exchange content: No; shares location: No; digital purchases: Yes; generative AI content (if asked): Yes, and users can report every reading in the app.
 - **Target audience and content:** 18 and over only. Appeals to children: No.
@@ -65,6 +65,7 @@ Collects or shares data: Yes. Encrypted in transit: Yes. Users can request delet
 | Personal info > Name | Yes | No | Required | App functionality, Personalization, Account management |
 | Personal info > Phone number | Yes | No | Required | App functionality, Account management, Fraud prevention, security and compliance |
 | Personal info > User IDs | Yes | No | Required | App functionality, Account management |
+| Personal info > Other info (date of birth; optional time and city of birth, gender) | Yes | No | Required (date of birth; the rest optional) | App functionality, Personalization |
 | Personal info > Email address | Yes (Razorpay checkout may ask) | No | Required | App functionality, Fraud prevention, security and compliance |
 | Financial info > User payment info | Yes (in Razorpay checkout) | No | Required | App functionality, Fraud prevention, security and compliance |
 | Financial info > Purchase history | Yes | No | Required | App functionality, Account management |

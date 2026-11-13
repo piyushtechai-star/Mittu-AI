@@ -18,7 +18,7 @@ Check 'reviewer login 9999988888 / 123456' ([bool]$tok)
 $H = @{ Authorization = "Bearer $tok" }
 $me = Invoke-RestMethod "$B/me" -Headers $H
 Check "me: active=$($me.subscription.active) next=$($me.next) readings left=$($me.readingsLeftToday)" ($me.subscription.active)
-if ($me.next -eq 'name') { $me = Invoke-RestMethod "$B/me/name" -Method Post -Headers $H -ContentType 'application/json' -Body '{"name":"Play Reviewer"}'; Check 'reviewer name set' ($me.next -eq 'home') }
+if ($me.next -eq 'name') { $me = Invoke-RestMethod "$B/me/name" -Method Post -Headers $H -ContentType 'application/json' -Body '{"name":"Play Reviewer"}'; Check 'reviewer name set' ($me.next -in 'home','birth') }
 
 $off = Invoke-RestMethod "$B/reading" -Method Post -Headers $H -ContentType 'application/json' -Body '{"question":"1 + 1","category":"general"}'
 Check 'off-topic "1 + 1" answered for free' ($off.kind -eq 'offtopic')

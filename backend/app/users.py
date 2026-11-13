@@ -1,4 +1,4 @@
-"""The signed-in user: onboarding step, name, daily limits, account deletion."""
+"""The signed-in user: onboarding step, name, birth details, daily limits, account deletion."""
 from __future__ import annotations
 
 import re
@@ -7,7 +7,7 @@ import time
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from . import settings
+from . import birth, settings
 from .auth import CurrentUid
 from .store import now_ms, store, today_ist
 
@@ -84,10 +84,11 @@ def require_subscription(user: dict) -> None:
 def me_view(uid: str, user: dict) -> dict:
     sub = user.get("subscription") or {}
     active = subscription_active(user)
-    # Fixed onboarding order (guide 05): OTP → Paywall → Name (required) → Home.
-    next_step = "paywall" if not active else "name" if not user.get("name") else "home"
+    # Fixed onboarding order (guide 05): OTP → Paywall → Name (required) → Birth details (date required, 18+) → Home.
+    next_step = ("paywall" if not active else "name" if not user.get("name")
+                 else "birth" if not user.get("birthDate") else "home")
     return {
-        "uid": uid, "phone": user.get("phone"), "name": user.get("name"),
+        "uid": uid, "phone": user.get("phone"), "name": user.get("name"), "birth": birth.view(user),
         "subscription": {"active": active, "status": sub.get("status"), "currentEnd": sub.get("currentEnd"),
                          "trialEnd": sub.get("trialEnd"), "newSubscription": bool(sub.get("purchaseEventPending"))},
         "readingsLeftToday": max(0, settings.READINGS_PER_DAY - used_today(uid, "reading")) if active else 0,
@@ -113,6 +114,15 @@ def set_name(body: NameBody, uid: str = CurrentUid):
         raise HTTPException(400, "Please enter your name using letters only.")
     require_subscription(get_user(uid))
     store().set(f"users/{uid}", {"name": name}, merge=True)
+    return me_view(uid, get_user(uid))
+
+
+@router.post("/me/birth")
+def set_birth(body: birth.BirthBody, uid: str = CurrentUid):
+    """Onboarding step after the name, and Profile > Birth details. Date of birth must show 18 or older."""
+    data = birth.validate(body)
+    require_subscription(get_user(uid))
+    store().set(f"users/{uid}", data, merge=True)
     return me_view(uid, get_user(uid))
 
 

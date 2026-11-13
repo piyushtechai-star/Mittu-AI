@@ -4,8 +4,15 @@ export type Me = {
   uid: string; phone: string; name: string | null;
   subscription: { active: boolean; status: string | null; currentEnd: number | null; trialEnd: number | null; newSubscription: boolean };
   readingsLeftToday: number;
-  next: 'paywall' | 'name' | 'home';
+  birth: Birth | null;
+  next: 'paywall' | 'name' | 'birth' | 'home';
 };
+/** Birth details (Naksh-style form). `sign`/`rashi` are worked out by the server from the date. */
+export type Birth = {
+  birthDate: string; birthTime: string | null; birthPlace: string | null; gender: 'female' | 'male' | 'other' | null;
+  sign: string; rashi: string;
+};
+export type BirthInput = Pick<Birth, 'birthDate' | 'birthTime' | 'birthPlace' | 'gender'>;
 export type Config = {
   plan: { name: string; trialPricePaise: number; trialDays: number; pricePaise: number; interval: string; currency: string };
   razorpayKeyId: string; billingMode: 'razorpay' | 'fake'; readingsPerDay: number;
@@ -33,6 +40,7 @@ export type Invoice = { id: string; number: string; amountPaise: number; paidAt:
 export const getMe = () => api<Me>('/me');
 export const getConfig = () => api<Config>('/config');
 export const setName = (name: string) => api<Me>('/me/name', { body: { name } });
+export const setBirth = (b: BirthInput) => api<Me>('/me/birth', { body: b });
 export const ackPurchaseEvent = () => api('/me/purchase-event-ack', { body: {} });
 
 export const createSubscription = () => api<{ subscriptionId: string; keyId: string; phone: string }>('/billing/subscription', { body: {} });

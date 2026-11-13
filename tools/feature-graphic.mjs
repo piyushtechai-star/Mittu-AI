@@ -1,7 +1,7 @@
-// Play feature graphic 1024x500 (no transparency, no prices) from the app's own art: Mittu (mobile/src/components/Mittu.tsx),
+// Play feature graphic 1024x500 (no transparency, no prices) from the app's own art: Mittu (mobile/src/data/mittuArt.js),
 // card back, The Sun card face and the mandala (mobile/src/data/cardArt.js).   Run: node tools/feature-graphic.mjs
 import { Resvg } from '@resvg/resvg-js';
-import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -11,10 +11,10 @@ const tmp = join(mkdtempSync(join(tmpdir(), 'mittu-')), 'cardArt.mjs');   // the
 copyFileSync(join(ROOT, 'mobile/src/data/cardArt.js'), tmp);
 const { CARD_ART, CARD_DEFS, cardBackMarkup, mandalaMarkup } = await import(pathToFileURL(tmp).href);
 
-const src = readFileSync(join(ROOT, 'mobile/src/components/Mittu.tsx'), 'utf8');
-const L = {};
-for (const m of src.matchAll(/(\w+): V\((['`])([\s\S]*?)\2\)/g)) L[m[1]] = m[3];
-const bird = ['tail', 'feet', 'body', 'foldedWing', 'head', 'lowerBeak', 'upperBeak'].map((k) => L[k]).join('');
+const artTmp = join(dirname(tmp), 'mittuArt.mjs');
+copyFileSync(join(ROOT, 'mobile/src/data/mittuArt.js'), artTmp);
+const { MITTU_LAYERS, PERCHED } = await import(pathToFileURL(artTmp).href);
+const bird = PERCHED.map((k) => MITTU_LAYERS[k]).join('');
 
 let seed = 7;
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);

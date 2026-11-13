@@ -121,4 +121,4 @@ options:
   machineType: 'E2_HIGHCPU_8'   # HIGHCPU_32 is quota-blocked in asia-south1
   diskSizeGb: 100
   logging: CLOUD_LOGGING_ONLY
-timeout: 3600s
+timeout: 7200s   # two ABIs with one gradle worker take ~60 min; build 025bc012 hit the old 3600s limit

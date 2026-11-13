@@ -58,9 +58,14 @@ LANGUAGE_LINE = {
 }
 
 
-def _user_message(card_id: int, orientation: str, name: str, category: str, question: str) -> str:
+def _user_message(card_id: int, orientation: str, name: str, category: str, question: str,
+                  birth_line: str | None = None) -> str:
     _, en, hi_roman, _ = CARDS[card_id]
+    # Birth details are optional context for a personal touch (e.g. "Simha rashi wale..."), never to be recited.
+    about = (f"<about_user>{birth_line}</about_user> (optional personal touch; don't list these details)\n"
+             if birth_line else "")
     return (f"{LANGUAGE_LINE[question_language(question)]}\n"
+            f"{about}"
             f"Card: {en} ({hi_roman})\n"
             f"Orientation: {orientation}\n"
             f"Category: {CATEGORY_LABELS.get(category, CATEGORY_LABELS['general'])}\n"
@@ -92,7 +97,8 @@ def safe_fallback(card_id: int) -> str:
             "Aaj kisi apne se dil ki baat zaroor kijiye. Mittu ka aashirwaad hai! Lucky color, hara... lucky number, paanch!")
 
 
-def reading_text(card_id: int, orientation: str, name: str, category: str, question: str) -> tuple[str, dict]:
+def reading_text(card_id: int, orientation: str, name: str, category: str, question: str,
+                 birth_line: str | None = None) -> tuple[str, dict]:
     """Returns (text, usage). Raises 503 (nothing delivered) on API errors."""
     if settings.AI_PROVIDER == "fake":
         _, en, hi_roman, _ = CARDS[card_id]
@@ -111,7 +117,7 @@ def reading_text(card_id: int, orientation: str, name: str, category: str, quest
     )
     try:
         response = client().models.generate_content(
-            model=settings.GEMINI_MODEL, contents=_user_message(card_id, orientation, name, category, question), config=config)
+            model=settings.GEMINI_MODEL, contents=_user_message(card_id, orientation, name, category, question, birth_line), config=config)
     except errors.APIError as err:
         log.error("Vertex Gemini error %s: %s", err.code, err.message)
         raise HTTPException(503, BUSY if err.code == 429 else TRY_AGAIN) from err

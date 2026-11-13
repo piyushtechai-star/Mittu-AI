@@ -14,7 +14,7 @@ Flow on every launch: 1 Splash → 2 Meet Mittu → (login for new users) → 3 
 - **History** tab: past readings, replay voice (7 days), Report.
 - **Reading** (5-12), about 9 s and skippable: bansuri zoom → take-off → 7 cards in two rows → hover (cards glow) → pick → 3D flip with a gold swirl → Mittu lands on the rod: "Suno suno… Mittu ne nikaala hai … ka card!", voice + subtitles → parchment scroll with the reading, lucky colour and number, Ek aur card, Share Karo, Replay Voice, "Sirf manoranjan ke liye" and Report. Mute and close.
 - **Profile**: name, plan, reading history, invoices, help, policy links, sign out. No cancel button, no delete button (both explained in the policies).
-- Onboarding (fixed): OTP → Paywall → Name (required) → Home.
+- Onboarding (fixed): OTP → Paywall → Name (required) → Birth details (date of birth required, 18+ only; time, city, gender optional; like Naksh) → Home. Mittu gets the sun sign (rashi) and birth line as a light personal touch.
 
 ## Price plan
 Razorpay Subscription with UPI Autopay: a small trial, then a monthly price. Placeholders until Ayush sets the plan: ₹1 for 3 days, then ₹99/month, plan name `mittuai_99`, 5 readings per day. All of these come from the backend `/config` and are never hard-coded in the app.

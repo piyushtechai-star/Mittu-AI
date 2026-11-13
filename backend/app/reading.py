@@ -15,7 +15,7 @@ import time
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from . import ai, media, safety, settings, tts
+from . import ai, birth, media, safety, settings, tts
 from .auth import CurrentUid
 from .cards import card_view, draw
 from .store import new_id, now_ms, store
@@ -57,7 +57,8 @@ def create_reading(body: ReadingBody, request: Request, uid: str = CurrentUid):
     charge_daily(uid, "reading")
     card_id, orientation = draw()
     try:
-        text, usage = ai.reading_text(card_id, orientation, user.get("name") or "", body.category, question)
+        text, usage = ai.reading_text(card_id, orientation, user.get("name") or "", body.category, question,
+                                      birth.context_line(user))
     except Exception:
         refund_daily(uid, "reading")   # nothing delivered: don't use up one of today's readings
         raise

@@ -25,7 +25,10 @@ def login(phone="9876543210"):
 def onboard(h, name="Riya"):
     assert c.post("/billing/subscription", headers=h).status_code == 200
     assert c.post("/billing/test-complete", headers=h).json()["next"] == "name"
-    assert c.post("/me/name", headers=h, json={"name": name}).json()["next"] == "home"
+    assert c.post("/me/name", headers=h, json={"name": name}).json()["next"] == "birth"
+    me = c.post("/me/birth", headers=h, json={"birthDate": "1998-08-14", "birthTime": "06:30", "birthPlace": "Lucknow",
+                                              "gender": "female"}).json()
+    assert me["next"] == "home" and me["birth"]["rashi"] == "Simha"
 
 
 def test_onboarding_order_and_paywall_gate():
@@ -245,3 +248,37 @@ def test_repeated_sentence_part_is_flagged():
     parts = ["one two three four five six seven eight nine ten", "a b c d e f g h i j", "k l m n o p q r s t", "lucky color peela"]
     assert tts.suspect_repeats(parts, [5.0, 5.2, 8.5, 4.0]) == [2]      # part 2: 0.85 s/word vs ~0.5 → remake
     assert tts.suspect_repeats(parts, [5.0, 5.2, 5.6, 4.0]) == []       # normal variation and a slow short ending
+
+
+def test_birth_details_validation_and_18_plus():
+    from datetime import date
+    h = login("9876500011")
+    c.post("/billing/subscription", headers=h)
+    c.post("/billing/test-complete", headers=h)
+    c.post("/me/name", headers=h, json={"name": "Aman"})
+    assert c.get("/me", headers=h).json()["next"] == "birth"
+    young = date.today().replace(year=date.today().year - 17).isoformat()
+    for bad in ({"birthDate": young}, {"birthDate": "2001-02-30"}, {"birthDate": "1890-01-01"},
+                {"birthDate": "1990-01-01", "birthTime": "25:00"}, {"birthDate": "1990-01-01", "birthPlace": "<b>Delhi</b>"},
+                {"birthDate": "1990-01-01", "gender": "x"}, {"birthDate": "01-01-1990"}):
+        assert c.post("/me/birth", headers=h, json=bad).status_code in (400, 422), bad
+    assert "18" in c.post("/me/birth", headers=h, json={"birthDate": young}).json()["detail"]
+    me = c.post("/me/birth", headers=h, json={"birthDate": "1990-01-01"}).json()   # time, place, gender optional
+    assert me["next"] == "home" and me["birth"]["sign"] == "Capricorn" and me["birth"]["birthTime"] is None
+
+
+def test_birth_line_reaches_the_prompt_only_as_context():
+    from app import ai, birth
+    line = birth.context_line({"birthDate": "1998-08-14", "birthTime": "06:30", "birthPlace": "Lucknow", "gender": "female"})
+    assert line == "Sun sign Leo (Simha); born 14 Aug 1998, 06:30, Lucknow; female"
+    msg = ai._user_message(0, "upright", "Riya", "love", "Pyaar milega?", line)
+    assert "<about_user>Sun sign Leo (Simha)" in msg and "<name>Riya</name>" in msg
+    assert "<about_user>" not in ai._user_message(0, "upright", "Riya", "love", "Pyaar milega?")
+
+
+@pytest.mark.parametrize("d, sign", [("2000-03-21", "Aries"), ("2000-12-25", "Capricorn"), ("2000-01-20", "Aquarius"),
+                                      ("2000-07-23", "Leo"), ("2000-11-22", "Sagittarius")])
+def test_sun_sign(d, sign):
+    from datetime import date
+    from app.birth import sun_sign
+    assert sun_sign(date.fromisoformat(d))[0] == sign
