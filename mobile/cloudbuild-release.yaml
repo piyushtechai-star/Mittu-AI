@@ -139,11 +139,13 @@ steps:
         mkdir -p "$$HOME" "$$GRADLE_USER_HOME"
         sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
         # Android's CMake build calls ninja directly (CMAKE_BUILD_PARALLEL_LEVEL doesn't reach it), and ninja runs
-        # cores+2 = ~10 clang++ at once on this machine. Wrap every ninja so it runs at most 3 compile jobs.
+        # cores+2 = ~10 clang++ at once on this machine. Wrap every ninja so builds run at most 3 compile jobs;
+        # `--version` and `-t` tool calls (CMake's own checks) pass through untouched (appending -j3 to them broke
+        # CMake's compiler detection in build 9b1ac7a2).
         for n in /usr/bin/ninja /home/circleci/android-sdk/cmake/*/bin/ninja; do
           [ -f "$$n" ] && [ ! -e "$$n.real" ] || continue
           sudo mv "$$n" "$$n.real"
-          printf '#!/bin/sh\nexec "%s.real" "$$@" -j3\n' "$$n" | sudo tee "$$n" > /dev/null
+          printf '#!/bin/sh\ncase " $$* " in *" --version "*|*" -t "*) exec "%s.real" "$$@";; esac\nexec "%s.real" -j3 "$$@"\n' "$$n" "$$n" | sudo tee "$$n" > /dev/null
           sudo chmod +x "$$n"; echo "ninja limited to 3 jobs: $$n"
         done
         # Every 5 minutes, log what is running and the free memory, so a silent hang shows its cause in the log.
