@@ -14,6 +14,7 @@ steps:
     env:
       - 'NPM_CONFIG_CACHE=/workspace/.npm-cache'
       - 'HOME=/workspace/.home'
+      - 'CI=1'   # non-interactive Expo/Metro (no file watching, no prompts), as EAS builds run
       - 'EXPO_PUBLIC_API_URL=https://mittuai-api-319635525745.asia-south1.run.app'
     args:
       - -c
@@ -90,6 +91,10 @@ steps:
     env:
       - 'HOME=/workspace/.home'
       - 'GRADLE_USER_HOME=/workspace/.gradle'
+      # Metro bundles the JS inside gradle (createReleaseUpdatesResources / createBundleReleaseJsAndAssets). Without
+      # CI=1 it starts in watch mode and hangs: builds 025bc012, 5933b221 and a6da3997 went silent there and died at ~58 min.
+      - 'CI=1'
+      - 'NODE_OPTIONS=--max-old-space-size=3072'
       - 'CMAKE_BUILD_PARALLEL_LEVEL=1'   # else reanimated C++ compile OOM-kills gradle
       - 'EXPO_PUBLIC_API_URL=https://mittuai-api-319635525745.asia-south1.run.app'
     args:
