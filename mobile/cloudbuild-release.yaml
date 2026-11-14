@@ -28,6 +28,33 @@ steps:
         npm ci --no-audit --no-fund --prefer-offline
         npx expo prebuild --platform android --no-install --clean
 
+        # expo-updates' :app:createReleaseUpdatesResources starts a second Metro server inside gradle to write
+        # app.manifest; with gradle + the Kotlin daemon holding most of the 8 GB, Metro's workers stall there for an hour
+        # (builds a6da3997, 25e339a0, 6116516f). Make the manifest here instead, while memory is free (about 20 s on a
+        # laptop), and let the gradle task copy it (small patch below, active only when PREBUILT_UPDATES_RESOURCES is set).
+        mkdir -p /builder/home/updates-prebuilt
+        node node_modules/expo-updates/utils/build/createUpdatesResources.js android "$$PWD" /builder/home/updates-prebuilt \
+          all "$$PWD/node_modules/expo-router/entry.js" production
+        ls -l /builder/home/updates-prebuilt
+        python3 - <<'PY'
+        import pathlib
+        p = pathlib.Path("node_modules/expo-updates/utils/build/createUpdatesResources.js")
+        s = p.read_text()
+        hook = (
+            "if (process.env.PREBUILT_UPDATES_RESOURCES && process.argv[5] === 'all') {\n"
+            "  const fs = require('fs'), path = require('path');\n"
+            "  const src = process.env.PREBUILT_UPDATES_RESOURCES, dst = process.argv[4];\n"
+            "  fs.mkdirSync(dst, { recursive: true });\n"
+            "  for (const f of fs.readdirSync(src)) fs.copyFileSync(path.join(src, f), path.join(dst, f));\n"
+            "  console.log('expo-updates: copied prebuilt resources from ' + src);\n"
+            "  process.exit(0);\n"
+            "}\n"
+        )
+        lines = s.split("\n", 1)   # keep "use strict" first
+        p.write_text(lines[0] + "\n" + hook + lines[1])
+        print("patched createUpdatesResources.js")
+        PY
+
         # Expo SDK 58's gradle.properties has no newline at the end: start a new line first, or the next
         # property is glued onto `expo.inlineModules.watchedDirectories=[]` and :expo:generateInlineModules fails
         # ("Unexpected non-whitespace character after JSON at position 2"; build 21f3e8c2, 2026-11-14).
@@ -92,6 +119,7 @@ steps:
     entrypoint: bash
     secretEnv: ['STORE_PASS', 'KEY_PASS']
     env:
+      - 'PREBUILT_UPDATES_RESOURCES=/builder/home/updates-prebuilt'   # app.manifest made in step 1 (see there)
       - 'HOME=/builder/home'
       - 'GRADLE_USER_HOME=/builder/home/.gradle'
       # Metro bundles the JS inside gradle (createBundleReleaseJsAndAssets, createReleaseUpdatesResources): CI=1 keeps
