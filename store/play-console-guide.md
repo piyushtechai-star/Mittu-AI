@@ -34,7 +34,7 @@ Checked against the code on 2026-11-13 (12-screen storyboard design, microphone 
 8. App integrity > copy the **App signing key certificate SHA-1** (needed later for Meta, as base64, not hex).
 
 Checks before rollout:
-- App bundle explorer > Permissions: expect INTERNET, ACCESS_NETWORK_STATE, **RECORD_AUDIO** (speak your question), MODIFY_AUDIO_SETTINGS, VIBRATE (plus small library ones like WAKE_LOCK). **Not** FOREGROUND_SERVICE_MEDIA_PLAYBACK, location, SMS, contacts or storage (blocked in app.json). If FOREGROUND_SERVICE_MEDIA_PLAYBACK shows, the AAB is the old one; if RECORD_AUDIO is missing, it was built before voice input.
+- App bundle explorer > Permissions (checked in builds/mittuai-3.aab, 2026-11-14): INTERNET, ACCESS_NETWORK_STATE, **RECORD_AUDIO** (speak your question), MODIFY_AUDIO_SETTINGS, VIBRATE, WAKE_LOCK, and NFC (normal permission added by a library, most likely the Razorpay SDK; Mittu doesn't use it). **Not** FOREGROUND_SERVICE_MEDIA_PLAYBACK, location, SMS, contacts or storage. Signed with the EAS upload key (alias 5B82C63B…, SHA-1 03:3A:A0:45:A4:8A:9B:47:33:02:F5:2A:45:33:34:A3:1E:0A:64:32).
 - If AD_ID is listed, answer Advertising ID "Yes" below; without the Meta SDK it should not be there.
 - Native code: arm64-v8a + x86_64 (guide 13).
 - Play lets you roll out internal testing before the store listing is finished. If it asks for an App content item first, the answers are in section 4.
