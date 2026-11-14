@@ -12,8 +12,11 @@ steps:
     id: prebuild
     entrypoint: bash
     env:
-      - 'NPM_CONFIG_CACHE=/workspace/.npm-cache'
-      - 'HOME=/workspace/.home'
+      # Caches live OUTSIDE the project (/workspace): Metro crawls the project root when it builds the update
+      # manifest (:app:createReleaseUpdatesResources), and multi-GB caches inside it made that step hang (build 25e339a0).
+      # /builder/home is shared by all steps, like /workspace.
+      - 'NPM_CONFIG_CACHE=/builder/home/.npm-cache'
+      - 'HOME=/builder/home'
       - 'CI=1'   # non-interactive Expo/Metro (no file watching, no prompts), as EAS builds run
       - 'EXPO_PUBLIC_API_URL=https://mittuai-api-319635525745.asia-south1.run.app'
     args:
@@ -89,10 +92,10 @@ steps:
     entrypoint: bash
     secretEnv: ['STORE_PASS', 'KEY_PASS']
     env:
-      - 'HOME=/workspace/.home'
-      - 'GRADLE_USER_HOME=/workspace/.gradle'
-      # Metro bundles the JS inside gradle (createReleaseUpdatesResources / createBundleReleaseJsAndAssets). Without
-      # CI=1 it starts in watch mode and hangs: builds 025bc012, 5933b221 and a6da3997 went silent there and died at ~58 min.
+      - 'HOME=/builder/home'
+      - 'GRADLE_USER_HOME=/builder/home/.gradle'
+      # Metro bundles the JS inside gradle (createBundleReleaseJsAndAssets, createReleaseUpdatesResources): CI=1 keeps
+      # it non-interactive, as on EAS.
       - 'CI=1'
       - 'NODE_OPTIONS=--max-old-space-size=3072'
       - 'CMAKE_BUILD_PARALLEL_LEVEL=1'   # else reanimated C++ compile OOM-kills gradle
