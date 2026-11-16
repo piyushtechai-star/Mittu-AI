@@ -1,6 +1,6 @@
 # Mittu AI legal pages: drafts for Ayush
 
-Four drafts to publish at https://houseoftech-legal.web.app/mittuai/...
+Four drafts to publish at https://houseoftech-legal.web.app/mittu-ai/...
 
 | File | Publish at |
 |---|---|

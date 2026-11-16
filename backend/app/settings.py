@@ -98,7 +98,7 @@ SAC_CODE = "998434"
 WEB_ORIGINS = [o.strip() for o in os.environ.get("WEB_ORIGINS", "").split(",") if o.strip()]
 
 # --- Links ---
-LEGAL_BASE = os.environ.get("LEGAL_BASE", "https://houseoftech-legal.web.app/mittuai")
+LEGAL_BASE = os.environ.get("LEGAL_BASE", "https://houseoftech-legal.web.app/mittu-ai")   # pages published 2026-11-16
 SUPPORT_EMAIL = "support@houseoftech.ai"
 
 # Refuse to start in production with development defaults (anyone could mint sessions, log in as anyone or

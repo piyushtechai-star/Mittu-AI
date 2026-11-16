@@ -6,7 +6,7 @@ Checked against the code on 2026-11-13 (12-screen storyboard design, microphone 
 | Blocker | Blocks | Owner |
 |---|---|---|
 | A new AAB with the new design, mic and music (versionCode 3). Built on Google Cloud Build, not EAS (free builds used up): one-time `tools/gcp/mittuai-build-setup.ps1`, then `tools/gcp/mittuai-build-aab.ps1` → `builds/mittuai-3.aab`. | Upload | Piyush |
-| Policy pages not published yet: houseoftech-legal.web.app/mittuai/privacy, /terms, /payment-cancellation, /delete-account (drafts in `store/legal-drafts/mittuai/`). Play needs the privacy and deletion URLs for App content. | App content, production | Ayush |
+| Policy pages are **live** (16 Nov) at houseoftech-legal.web.app/mittu-ai/privacy, /terms, /payment-cancellation, /delete-account, but 4 points don't match the app yet (birth details missing, yearly plan, notifications, Meta): see `store/legal-review-2026-11-16.md`. | Production | Ayush |
 | Razorpay plan (trial, price, `mittuai_<price>`), webhook secret, live keys. Until then the paywall answers "Payments are busy" (the reviewer account is already subscribed). | Real users | Ayush |
 | Mittu's own DLT SMS template. Until then real numbers get no OTP; the reviewer login works without SMS. | Real users | Ayush |
 | Vertex quota for gemini-2.5-flash-tts is 10 requests/min per project (about 2 readings a minute); over it, readings use the backup voice. | Launch | Ayush |
@@ -47,7 +47,7 @@ Checks before rollout:
 - Category Entertainment, email support@houseoftech.ai, privacy policy URL below.
 
 ## 4. App content (Policy > App content)
-- **Privacy policy:** https://houseoftech-legal.web.app/mittuai/privacy (must be live first)
+- **Privacy policy:** https://houseoftech-legal.web.app/mittu-ai/privacy (must be live first)
 - **App access:** All or some functionality is restricted > Add instructions. Name `Reviewer login`, username `9999988888`, password `123456`. Instructions:
   "Sign-in is by mobile number and one-time code. This test number works without SMS: open the app, tap Get Started, then Aage badhein, enter 9999988888, tap Code bhejiye and type 123456. On first sign-in the app asks for a date of birth (the app is 18+ only): enter any adult date such as 01 / 01 / 1990; time, city and gender are optional. The account already has an active subscription, so every feature is open: type or speak a question, tap Aage badhein, then Mittu, card nikaalo! to watch Mittu pick a tarot card and hear the reading. It allows 5 readings a day."
 - **Ads:** No, my app does not contain ads
@@ -55,7 +55,7 @@ Checks before rollout:
 - **Target audience and content:** 18 and over only. Appeals to children: No.
 - **News app:** No · **Government app:** No · **Financial features:** none · **Health apps:** "My app does not have any health features" (Health is only a question category for entertainment readings).
 - **Advertising ID:** this build has no Meta SDK → **No**. When Meta is added (Ayush's App ID + Client Token, rebuild): change to Yes, purposes Analytics and Advertising or marketing, and update Data safety (guide 10: a mismatch blocks the release).
-- **Account deletion:** Delete account URL https://houseoftech-legal.web.app/mittuai/delete-account (Profile > Delete account opens it in the app).
+- **Account deletion:** Delete account URL https://houseoftech-legal.web.app/mittu-ai/delete-account (Profile > Delete account opens it in the app).
 
 ## 5. Data safety (current build: no Meta SDK, no Pulse)
 Collects or shares data: Yes. Encrypted in transit: Yes. Users can request deletion: Yes (URL above).

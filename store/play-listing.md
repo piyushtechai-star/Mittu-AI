@@ -1,7 +1,7 @@
 # Mittu AI: Play Store listing (draft, guide 14)
 
 Rule: **no ₹ prices anywhere** on the Play Store (description, release notes, screenshots). Search for "₹" and "Rs" before uploading.
-Category: Entertainment · Contact: support@houseoftech.ai · Privacy: https://houseoftech-legal.web.app/mittuai/privacy
+Category: Entertainment · Contact: support@houseoftech.ai · Privacy: https://houseoftech-legal.web.app/mittu-ai/privacy
 
 ## App name (max 30)
 ```

@@ -186,7 +186,7 @@ def test_webhook_signature_idempotency_and_invoice():
 def test_config_serves_prices_and_limit():
     cfg = c.get("/config").json()
     assert cfg["plan"]["trialPricePaise"] == settings.TRIAL_PRICE_PAISE and cfg["readingsPerDay"] == settings.READINGS_PER_DAY
-    assert cfg["legal"]["privacy"].endswith("/mittuai/privacy")
+    assert cfg["legal"]["privacy"] == "https://houseoftech-legal.web.app/mittu-ai/privacy"
 
 
 def test_production_refuses_test_settings():
