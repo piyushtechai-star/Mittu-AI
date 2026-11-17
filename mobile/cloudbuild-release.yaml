@@ -137,6 +137,11 @@ steps:
         set -eu
         sudo chown -R $$(id -u):$$(id -g) /workspace /builder/home || true
         mkdir -p "$$HOME" "$$GRADLE_USER_HOME"
+        # android/gradle.properties only reaches the app build. Expo's and React Native's gradle plugins are separate
+        # included builds, and they each started their own Kotlin compiler daemon (2.2.0 and 2.2.21, ~1 GB each, idle
+        # for the rest of the build). With the Meta SDK added that left 31 MB free and build 193611f8 (versionCode 4)
+        # froze and lost the gradle daemon at ~47 min. The user-level gradle.properties applies to every build.
+        printf 'kotlin.compiler.execution.strategy=in-process\n' >> "$$GRADLE_USER_HOME/gradle.properties"
         sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
         # Android's CMake build calls ninja directly (CMAKE_BUILD_PARALLEL_LEVEL doesn't reach it), and ninja runs
         # cores+2 = ~10 clang++ at once on this machine. Wrap every ninja so builds run at most 3 compile jobs;
@@ -150,7 +155,8 @@ steps:
         done
         # Every 5 minutes, log what is running and the free memory, so a silent hang shows its cause in the log.
         ( while true; do sleep 300; echo "== watchdog $$(date -u +%H:%M:%S)"; free -m | head -2;
-            ps -eo pid,etime,pcpu,rss,args --sort=-pcpu | head -8 | cut -c1-200; done ) &
+            ps -eo pid,etime,pcpu,rss,args --sort=-pcpu | head -8 | cut -c1-200;
+            echo "kotlin daemons: $$(pgrep -fc KotlinCompileDaemon || true)"; done ) &
         cd android && chmod +x ./gradlew
         ./gradlew bundleRelease --no-daemon --stacktrace \
           -PUPLOAD_STORE_FILE=/workspace/keys/upload.jks \

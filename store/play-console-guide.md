@@ -57,6 +57,15 @@ Checks before rollout:
 - **Advertising ID:** this build has no Meta SDK → **No**. When Meta is added (Ayush's App ID + Client Token, rebuild): change to Yes, purposes Analytics and Advertising or marketing, and update Data safety (guide 10: a mismatch blocks the release).
 - **Account deletion:** Delete account URL https://houseoftech-legal.web.app/mittu-ai/delete-account (Profile > Delete account opens it in the app).
 
+## 4b. What was actually submitted (16 Nov 2026, all App content done)
+Filled in Play Console with the Meta answers chosen by Piyush, ahead of the Meta SDK going in:
+- **Advertising ID: Yes** (Analytics, Advertising or marketing). The current AAB (versionCode 3) has no AD_ID permission; the Meta build must add it.
+- **Data safety:** as the table below, except Purchase history, App interactions, Crash logs, Diagnostics and Device or other IDs are **collected and shared (Meta)**. Shared purposes are Analytics plus Advertising or marketing; crash logs and diagnostics are shared for Analytics only. Collected purposes: Purchase history = App functionality, Analytics, Account management; App interactions = App functionality, Analytics; Crash logs and Diagnostics = Analytics; Device or other IDs = Analytics, Advertising or marketing, Fraud prevention.
+- App access login set is named "Shubham" (username 9999988888). Target audience 18+; the optional "restrict minors" box was left unticked.
+- Content rating: IARC questionnaire done (Brazil shows 14+).
+- **Meta key hashes** (Meta > Settings > Basic > Android): Play app signing key SHA-1 49:6E:3D:E3:7D:B3:62:84:61:30:2B:04:47:94:DC:CC:8F:8C:CD:13 → `SW49432zYoRhMCsER5TczI+MzRM=`; upload key SHA-1 03:3A:A0:45:…:0A:64:32 → `AzqgRaSKm0czAvUqRTM0ox4KZDI=`. Package com.houseoftech.mittuai, class com.houseoftech.mittuai.MainActivity.
+- If the Meta SDK doesn't ship, change these answers back to the "no Meta" version below; a mismatch with the AAB can block review.
+
 ## 5. Data safety (current build: no Meta SDK, no Pulse)
 Collects or shares data: Yes. Encrypted in transit: Yes. Users can request deletion: Yes (URL above).
 

@@ -40,7 +40,7 @@ export default function Profile() {
       </View>
 
       <Group>
-        <Row icon="planet-outline" title="Janam details"
+        <Row icon="planet-outline" title="Naam aur janam details"
           subtitle={me.birth ? `${me.birth.rashi} rashi (${me.birth.sign}) · ${me.birth.birthDate.split('-').reverse().join('/')}` : 'Add karein'}
           onPress={() => router.push({ pathname: '/birth', params: { edit: '1' } })} />
         <Row icon="time-outline" title="Reading history" onPress={() => router.push('/history')} />

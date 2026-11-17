@@ -20,7 +20,7 @@ Mittu the talking parrot picks your tarot card and speaks your reading.
 Remember the tota fortune-teller at the bazaar, the little green parrot who pulled a card for you? Mittu is back, and now he reads tarot.
 
 ASK MITTU
-Type your question, pick what it is about (Love, Career, Paisa, Health or General) and tap "Mittu, card nikaalo!".
+Type or speak your question, pick what it is about (Love, Career, Paisa, Health or General) and tap "Mittu, card nikaalo!". Mittu knows your sun sign (rashi) from your date of birth, so every reading feels made for you.
 
 WATCH HIM PICK YOUR CARD
 A bansuri plays, Mittu flies off his perch, seven cards spread out, he hovers over a few… and picks one with his beak. The card flips in a swirl of gold, and Mittu lands beside it.
@@ -32,11 +32,11 @@ ALL 22 MAJOR ARCANA
 From The Fool to The World, upright or reversed (shown upside down), each with its own card art and Hindi name, like The Star (Taara) or The Sun (Surya).
 
 YOUR READINGS, SAVED
-Look back at past readings in your profile. Replay Mittu's voice for recent ones.
+Look back at past readings in the History tab. Replay Mittu's voice for recent ones.
 
 MADE FOR EVERYONE
 • Skip animation option for quick readings, and support for the phone's reduce-motion setting
-• Mute and replay buttons
+• Mute and replay buttons, and soft background music you can switch off
 • Report button on every reading
 
 PLANS
