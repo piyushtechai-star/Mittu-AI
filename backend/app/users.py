@@ -26,7 +26,8 @@ def ensure_user(uid: str, phone: str) -> dict:
 
 def daily_limits() -> dict[str, int]:
     """Per user per day (AI + TTS spend and abuse). Reset at midnight IST."""
-    return {"reading": settings.READINGS_PER_DAY, "report": settings.REPORTS_PER_DAY}
+    return {"reading": settings.READINGS_PER_DAY, "report": settings.REPORTS_PER_DAY,
+            "followup": settings.FOLLOWUPS_PER_DAY}
 
 
 def charge_daily(uid: str, kind: str) -> None:
@@ -137,6 +138,8 @@ def delete_me(uid: str = CurrentUid):
     cancel_subscription(user)
     for doc_id, doc in store().list("readings", where=("uid", uid)):
         delete_voice(doc.get("audioPath"))
+        for f in doc.get("followups", []):   # v2 follow-up replies have their own clips
+            delete_voice(f.get("audioPath"))
         store().delete(f"readings/{doc_id}")
     for collection in ("subscriptions", "reports"):
         for doc_id, _ in store().list(collection, where=("uid", uid)):

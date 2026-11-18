@@ -15,7 +15,7 @@ from fastapi import HTTPException
 
 from . import settings
 from .cards import CARDS
-from .prompts import CATEGORY_LABELS, MITTU_SYSTEM
+from .prompts import CATEGORY_LABELS, FOLLOWUP_SYSTEM, MITTU_SYSTEM, MITTU_SYSTEM_V2
 
 log = logging.getLogger("mittuai.ai")
 
@@ -139,5 +139,119 @@ def reading_text(card_id: int, orientation: str, name: str, category: str, quest
     text = clean(response.text or "") if stop != "EMPTY" else ""
     if stop not in ("STOP", "MAX_TOKENS") or len(text.split()) < 25:
         log.error("Gemini reading ended with %s (%d words)", stop, len(text.split()))
+        raise HTTPException(503, TRY_AGAIN)
+    return text, usage
+
+
+# ---------------------------------------------------------------- v2: structured reading + follow-ups (brief 2026-11-17)
+FOLLOWUP_MAX_WORDS = 70
+_LUCKY_NUMBER = re.compile(r"\d{1,2}")
+
+
+def _generate_json(system: str, contents: str, max_tokens: int, schema: dict) -> tuple[dict | None, dict]:
+    """One Gemini call with a JSON response schema. Returns (parsed or None when the safety filter stopped it, usage).
+    Raises 503 on API errors or unusable output (the caller refunds the day's count)."""
+    import json
+
+    from google.genai import errors, types
+    config = types.GenerateContentConfig(
+        system_instruction=system,
+        max_output_tokens=max_tokens,
+        temperature=1.0,
+        response_mime_type="application/json",
+        response_schema=schema,
+        thinking_config=types.ThinkingConfig(thinking_level=settings.GEMINI_THINKING) if settings.GEMINI_THINKING else None,
+    )
+    try:
+        response = client().models.generate_content(model=settings.GEMINI_MODEL, contents=contents, config=config)
+    except errors.APIError as err:
+        log.error("Vertex Gemini error %s: %s", err.code, err.message)
+        raise HTTPException(503, BUSY if err.code == 429 else TRY_AGAIN) from err
+    except Exception as err:  # noqa: BLE001 - network errors, timeouts, missing credentials
+        log.exception("Vertex Gemini call failed")
+        raise HTTPException(503, TRY_AGAIN) from err
+
+    if response.prompt_feedback and response.prompt_feedback.block_reason:
+        stop = "BLOCKED"
+    elif not response.candidates:
+        stop = "EMPTY"
+    else:
+        stop = response.candidates[0].finish_reason.name if response.candidates[0].finish_reason else "STOP"
+    u = response.usage_metadata
+    usage = {"input": (u and u.prompt_token_count) or 0, "output": (u and u.candidates_token_count) or 0,
+             "thinking": (u and u.thoughts_token_count) or 0, "model": response.model_version or settings.GEMINI_MODEL}
+    if stop in SAFETY_STOPS:
+        return None, {**usage, "safetyFallback": True}
+    try:
+        data = json.loads(response.text or "")
+        if not isinstance(data, dict):
+            raise ValueError("not an object")
+    except Exception as err:  # noqa: BLE001
+        log.error("Gemini JSON unusable (%s, stop %s)", err, stop)
+        raise HTTPException(503, TRY_AGAIN) from err
+    return data, usage
+
+
+def _short(text: str, max_words: int) -> str:
+    words = clean(str(text or "")).split()
+    return " ".join(words[:max_words])
+
+
+def _lucky_number(value) -> str:
+    m = _LUCKY_NUMBER.search(str(value or ""))
+    return m.group(0) if m else ""
+
+
+def reading_v2(card_id: int, orientation: str, name: str, category: str, question: str,
+               birth_line: str | None = None) -> tuple[dict, dict]:
+    """Returns ({speech, sandesh, salah, lucky_color, lucky_number}, usage). Raises 503 when nothing usable came back."""
+    _, en, hi_roman, _ = CARDS[card_id]
+    if settings.AI_PROVIDER == "fake":
+        who = f"{name}, " if name else ""
+        speech = (f"Mittu Mittu! Suno suno... {who}Mittu ne nikaala hai {hi_roman} ka card, {en}"
+                  f"{', ulta' if orientation == 'reversed' else ''}! Mittu ko dikh raha hai ki nayi roshni ka sanket hai. "
+                  "Jo mehnat aap kar rahe ho, uska phal dheere dheere milega. Bas aaj ek chhota kadam uthaiye, "
+                  "aur apne aap pe bharosa rakhiye. Mittu ka aashirwaad hai! Lucky color, aasmaani neela... lucky number, saat! (Test mode)")
+        return {"speech": speech, "sandesh": "Nayi roshni aur umeed ka samay aa raha hai.",
+                "salah": "Aaj ek chhota kadam uthaiye.", "lucky_color": "Aasmaani neela", "lucky_number": "7"}, {}
+
+    schema = {"type": "OBJECT", "properties": {
+        "speech": {"type": "STRING"}, "sandesh": {"type": "STRING"}, "salah": {"type": "STRING"},
+        "lucky_color": {"type": "STRING"}, "lucky_number": {"type": "STRING"}},
+        "required": ["speech", "sandesh", "salah", "lucky_color", "lucky_number"]}
+    data, usage = _generate_json(MITTU_SYSTEM_V2, _user_message(card_id, orientation, name, category, question, birth_line),
+                                 settings.READING_MAX_OUTPUT_TOKENS, schema)
+    if data is None:   # safety filter: a gentle fixed reading, so the user still gets their card
+        speech = safe_fallback(card_id).replace("Kuurr!", "Mittu Mittu!")
+        return {"speech": speech, "sandesh": "Abhi dheeraj aur bharose ka samay hai.",
+                "salah": "Aaj kisi apne se dil ki baat kijiye.", "lucky_color": "Hara", "lucky_number": "5"}, usage
+    speech = clean(str(data.get("speech") or ""))
+    if len(speech.split()) < 25:
+        log.error("Gemini v2 reading too short (%d words)", len(speech.split()))
+        raise HTTPException(503, TRY_AGAIN)
+    return {"speech": speech, "sandesh": _short(data.get("sandesh"), 45), "salah": _short(data.get("salah"), 28),
+            "lucky_color": _short(data.get("lucky_color"), 4), "lucky_number": _lucky_number(data.get("lucky_number"))}, usage
+
+
+def followup_reply(card_id: int, orientation: str, name: str, category: str, question: str, reading: str,
+                   followup: str) -> tuple[str, dict]:
+    """Mittu's short spoken answer to a follow-up about the same card. Raises 503 when nothing usable came back."""
+    _, en, hi_roman, _ = CARDS[card_id]
+    if settings.AI_PROVIDER == "fake":
+        return (f"Mittu Mittu! {hi_roman} ka card yahi keh raha hai ki is baat mein bhi dheeraj se kaam lijiye. "
+                "Chhote kadam uthaiye, sahi waqt aane par raasta khud saaf hoga. (Test mode)"), {}
+    contents = (f"{LANGUAGE_LINE[question_language(followup)]}\n"
+                f"Card: {en} ({hi_roman}), {orientation}. Category: {CATEGORY_LABELS.get(category, CATEGORY_LABELS['general'])}\n"
+                f"<name>{name or 'not given'}</name>\n"
+                f"<question>{question or 'none'}</question>\n"
+                f"<reading>{reading}</reading>\n"
+                f"<followup>{followup}</followup>")
+    schema = {"type": "OBJECT", "properties": {"speech": {"type": "STRING"}}, "required": ["speech"]}
+    data, usage = _generate_json(FOLLOWUP_SYSTEM, contents, settings.FOLLOWUP_MAX_OUTPUT_TOKENS, schema)
+    if data is None:
+        return (f"Mittu Mittu! {hi_roman} ka card yahi kehta hai, dheeraj rakhiye aur apne dil ki suniye. "
+                "Is baat ke liye kisi apne se bhi zaroor baat kijiye."), usage
+    text = _short(data.get("speech"), FOLLOWUP_MAX_WORDS)
+    if len(text.split()) < 8:
         raise HTTPException(503, TRY_AGAIN)
     return text, usage

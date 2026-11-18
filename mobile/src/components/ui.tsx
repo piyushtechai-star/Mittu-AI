@@ -8,7 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StarField } from '@/components/Scene';
-import { colors, glow, radius, shadow, space, type } from '@/theme';
+import { colors, glass, glow, radius, shadow, space, type } from '@/theme';
 
 export type IconName = ComponentProps<typeof Ionicons>['name'];
 const MAX = 560; // readable column on a tablet or desktop browser; no effect on phones
@@ -175,8 +175,7 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: space.lg, paddingTop: space.sm, paddingBottom: space.sm },
   header: { flexDirection: 'row', alignItems: 'center', height: 48, marginBottom: space.sm },
   headerSide: { width: 56, justifyContent: 'center' },
-  card: { borderRadius: radius.lg, padding: space.lg, gap: space.sm, backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, ...shadow },
+  card: { borderRadius: radius.lg, padding: space.lg, gap: space.sm, ...glass, ...shadow },
   button: { height: 52, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.lg },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: 54 },
   group: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, overflow: 'hidden' },

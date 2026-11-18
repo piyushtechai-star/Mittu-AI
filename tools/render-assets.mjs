@@ -35,7 +35,9 @@ function wav({ channels, sampleRate }, { rate = 22050, gain = 1 } = {}) {
   return pcm;
 }
 
-for (const [name, opts] of [['whoosh'], ['flap'], ['shuffle'], ['chime'], ['squawk'], ['ambient', { rate: 16000 }]]) {
+// 2026-11-17 clean audio policy: only the wing flap is still made here (chirp.mp3 and flip.wav come from the
+// voice pipeline, see store/../backend tts); the santoor loop and other effects were removed from the app.
+for (const [name, opts] of [['flap']]) {
   const buf = wav(synth.SOUNDS[name](), opts);
   writeFileSync(join(SOUNDS, `${name}.wav`), buf);
   console.log(`sound ${name}.wav ${(buf.length / 1024).toFixed(0)} KB`);

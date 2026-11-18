@@ -20,16 +20,15 @@ src/
   components/
     Mittu.tsx            Mittu (SVG layers + Reanimated): idle/fly/hover/pick/land/talk, optional pagdi. STAND-IN for the Rive file
     TarotCard.tsx        Card back, card face, 3D flip;  Scene.tsx: night sky, gold-dust StarField, perch, feathers, burst
-    BackgroundMusic.tsx  Santoor loop on every screen (web: after the first tap); pauses in the background
     Art.tsx              Storyboard art: birdcage, bansuri zoom, gold swirl, landing rod, parchment scroll
     Report.tsx           Report sheet + "Sirf manoranjan ke liye" footer;  ui.tsx: Screen, Button, Row, Chips …
   api/                   client.ts (fetch + token), mittu.ts (typed API), auth.ts
   context/AuthContext.tsx  Token, /me, one-time Meta purchase event for a new subscription
   data/cardArt.js        Card art (original SVG, stand-in until the WebP art is on R2)
-  lib/                   sound.ts (bundled SFX, background santoor music + ducking, voice player), voice(.native).ts (speak your question: expo-speech-recognition / browser speech, en-IN, text only), nav.ts, razorpay(.web).ts, meta(.native).ts, storage
+  lib/                   sound.ts (no background music; 3 bundled SFX: chirp, flap, flip; voice loader/player with retry), story(.web).ts (Share Story 9:16 image), voice(.native).ts (speak your question: expo-speech-recognition / browser speech, en-IN, text only), nav.ts, razorpay(.web).ts, meta(.native).ts, storage
   theme.ts               Night theme for every screen: navy #0B0B2B, gold #D4AF37, cream text; `scene` extras
   lib/svgIds.ts          Unique SVG gradient ids per instance (web shares one document; hidden copies broke gradients)
-assets/images/           Icon set, splash, favicon;  assets/sounds/  squawk, chime, flap, shuffle, whoosh, ambient (tools/render-assets.mjs)
+assets/images/           Icon set, splash, favicon;  assets/sounds/  chirp.mp3 ("Mittu Mittu!" in his voice), flap.wav, flip.wav;  assets/cards/  00-21.webp (1909 Rider-Waite-Smith, public domain)
 app.json, app.config.ts  Expo config (package com.houseoftech.mittuai, arm64-v8a + x86_64); Meta SDK only when META_APP_ID + META_CLIENT_TOKEN are set
 eas.json                 preview (APK) and production (AAB), both point at the live API
 ```

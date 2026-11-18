@@ -12,9 +12,16 @@ try {
 
 export const voiceSupported = !!Speech;
 
+/** Asks for microphone + speech permission (Meet Mittu screen). Resolves true if granted. */
+export async function requestMic(): Promise<boolean> {
+  if (!Speech) return false;
+  return Speech.requestPermissionsAsync().then((p) => p.granted, () => false);
+}
+
 /** Listens once; onText gets the transcript so far (live while speaking). Returns a stop function.
+ *  onLevel (optional) gets the mic loudness 0-1 about 10x a second, for the waveform rings.
  *  en-IN keeps Hinglish in Roman letters ("kya mujhe naukri milegi"), which is how Mittu's readings are written. */
-export function listen(onText: (text: string) => void, onEnd: () => void): () => void {
+export function listen(onText: (text: string) => void, onEnd: () => void, onLevel?: (level: number) => void): () => void {
   const S = Speech;
   if (!S) {
     onEnd();
@@ -31,10 +38,13 @@ export function listen(onText: (text: string) => void, onEnd: () => void): () =>
   subs.push(S.addListener('result', (e) => onText(e.results[0]?.transcript ?? '')));
   subs.push(S.addListener('end', finish));
   subs.push(S.addListener('error', finish));
+  // volumechange: about -2 (silence) to 10 (loud)
+  if (onLevel) subs.push(S.addListener('volumechange', (e) => onLevel(Math.max(0, Math.min(1, (e.value + 2) / 12)))));
   S.requestPermissionsAsync().then((p) => {
     if (done) return;
     if (!p.granted) return finish();
-    S.start({ lang: 'en-IN', interimResults: true, addsPunctuation: true });
+    S.start({ lang: 'en-IN', interimResults: true, addsPunctuation: true,
+      volumeChangeEventOptions: onLevel ? { enabled: true, intervalMillis: 100 } : undefined });
   }, finish);
   return () => (done ? undefined : S.stop());
 }

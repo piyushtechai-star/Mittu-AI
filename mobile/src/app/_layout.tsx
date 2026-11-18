@@ -1,19 +1,23 @@
+import { Cinzel_600SemiBold, Cinzel_700Bold } from '@expo-google-fonts/cinzel';
+import { Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, useFonts } from '@expo-google-fonts/poppins';
+import { TiroDevanagariHindi_400Regular } from '@expo-google-fonts/tiro-devanagari-hindi';
 import { Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { BackgroundMusic } from '@/components/BackgroundMusic';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { entryFor, getOnboarded } from '@/lib/nav';
 import { colors } from '@/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   const style = document.createElement('style');
-  style.textContent = 'input, textarea { outline: none !important; }';
+  style.textContent = 'input, textarea { outline: none !important; } body { background: #090924; }';
   document.head.appendChild(style);
 }
 
@@ -23,10 +27,10 @@ function Routes() {
   const { ready, signedIn, me } = useAuth();
   if (!ready) return null;
   const next = me?.next;
-  const entry = !signedIn ? '/' : next === 'paywall' ? '/paywall' : next === 'name' ? '/name' : next === 'birth' ? '/birth' : '/home';
+  const entry = entryFor(signedIn, next);
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-      {/* 1. Splash and 2. Meet Mittu open the app on every launch, signed in or not (storyboard). */}
+      {/* Welcome and Meet Mittu: first launch only (brief 2026-11-17); index.tsx sends returning users onwards. */}
       <Stack.Screen name="index" />
       <Stack.Screen name="meet" options={{ animation: 'fade' }} />
       <Stack.Protected guard={!signedIn} redirectTo={entry}>
@@ -45,7 +49,6 @@ function Routes() {
       </Stack.Protected>
       <Stack.Protected guard={signedIn && next === 'home'} redirectTo={entry}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="letsgo" options={{ animation: 'fade' }} />
         <Stack.Screen name="reading" options={{ animation: 'fade' }} />
         <Stack.Screen name="invoices" />
       </Stack.Protected>
@@ -54,12 +57,17 @@ function Routes() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    Cinzel_600SemiBold, Cinzel_700Bold, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, TiroDevanagariHindi_400Regular,
+  });
+  const [onboardedKnown, setOnboardedKnown] = useState(false);
+  useEffect(() => { getOnboarded().finally(() => setOnboardedKnown(true)); }, []);
+  if ((!fontsLoaded && !fontError) || !onboardedKnown) return null;
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
           <StatusBar style="light" />
-          <BackgroundMusic />
           <Routes />
         </AuthProvider>
       </SafeAreaProvider>

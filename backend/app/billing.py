@@ -35,6 +35,8 @@ def config():
         "razorpayKeyId": settings.RAZORPAY_KEY_ID if settings.BILLING_MODE == "razorpay" else "test",
         "billingMode": settings.BILLING_MODE,
         "readingsPerDay": settings.READINGS_PER_DAY,
+        "followupsPerReading": settings.FOLLOWUPS_PER_READING,
+        "followupsPerDay": settings.FOLLOWUPS_PER_DAY,
         "legal": {k: f"{settings.LEGAL_BASE}/{k}" for k in ("privacy", "terms", "payment-cancellation", "delete-account")},
         "supportEmail": settings.SUPPORT_EMAIL,
     }

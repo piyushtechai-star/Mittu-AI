@@ -199,3 +199,82 @@ def synthesise(text: str) -> tuple[bytes, list[float] | None, str]:
         except Exception:  # noqa: BLE001 - fall back to the Cloud TTS voice so Mittu still speaks
             log.exception("Gemini TTS failed; using the Cloud TTS voice")
     return _cloud_tts(text)
+
+
+# ---------------------------------------------------------------- v2 fast voice (meeting brief 2026-11-17)
+FAST_RATE_HZ = 24_000
+ENVELOPE_FPS = 20          # loudness levels per second, for Mittu's beak and the waveform bar
+
+
+def _wav_pcm(data: bytes) -> tuple[bytes, int]:
+    """Cloud TTS LINEAR16 comes as a WAV file: returns (16-bit mono PCM, sample rate)."""
+    if data[:4] != b"RIFF":
+        return data, FAST_RATE_HZ
+    with wave.open(io.BytesIO(data)) as w:
+        return w.readframes(w.getnframes()), w.getframerate()
+
+
+def parrot_dsp(pcm: bytes, rate: int) -> tuple[bytes, str]:
+    """High-pass (FAST_HIGHPASS_HZ, smooth 80 Hz roll-off) for a crisp, slightly nasal parrot timbre, normalised to
+    -1 dBFS. Returns (PCM, envelope): one digit 0-9 per 1/ENVELOPE_FPS s, loudness relative to the clip."""
+    import numpy as np
+    x = np.frombuffer(pcm, dtype="<i2").astype(np.float64)
+    if x.size == 0:
+        return pcm, ""
+    spec = np.fft.rfft(x)
+    freqs = np.fft.rfftfreq(x.size, 1 / rate)
+    cut = settings.FAST_HIGHPASS_HZ
+    gain = np.clip((freqs - (cut - 80)) / 80, 0, 1) ** 2
+    y = np.fft.irfft(spec * gain, n=x.size)
+    peak = float(np.max(np.abs(y))) or 1.0
+    y = y * (0.89 * 32767 / peak)
+    frame = max(1, rate // ENVELOPE_FPS)
+    n = y.size // frame
+    rms = np.sqrt(np.mean(y[: n * frame].reshape(n, frame) ** 2, axis=1)) if n else np.zeros(0)
+    ref = float(np.percentile(rms, 95)) if n else 1.0
+    levels = np.clip(np.round(rms / (ref or 1.0) * 9), 0, 9).astype(int)
+    return np.clip(y, -32768, 32767).astype("<i2").tobytes(), "".join(map(str, levels))
+
+
+def _fast_cloud(text: str) -> tuple[bytes, int, list[float] | None]:
+    from google.cloud import texttospeech_v1beta1 as tts
+    ssml, words = ssml_with_marks(text)
+    response = _cloud_client().synthesize_speech(request=tts.SynthesizeSpeechRequest(
+        input=tts.SynthesisInput(ssml=ssml),
+        voice=tts.VoiceSelectionParams(language_code="hi-IN", name=settings.FAST_VOICE),
+        audio_config=tts.AudioConfig(audio_encoding=tts.AudioEncoding.LINEAR16, sample_rate_hertz=FAST_RATE_HZ,
+                                     pitch=settings.FAST_PITCH, speaking_rate=settings.FAST_RATE,
+                                     effects_profile_id=["handset-class-device"]),
+        enable_time_pointing=[tts.SynthesizeSpeechRequest.TimepointType.SSML_MARK]), timeout=15)
+    marks = {int(t.mark_name): float(t.time_seconds) for t in response.timepoints if re.fullmatch(r"\d+", t.mark_name)}
+    times = [marks.get(i) for i in range(len(words))]
+    pcm, rate = _wav_pcm(response.audio_content)
+    return pcm, rate, (None if any(t is None for t in times) else times)
+
+
+def _fast_chirp(text: str) -> tuple[bytes, int, None]:
+    from google.cloud import texttospeech_v1beta1 as tts
+    response = _cloud_client().synthesize_speech(request=tts.SynthesizeSpeechRequest(
+        input=tts.SynthesisInput(text=text),
+        voice=tts.VoiceSelectionParams(language_code="hi-IN", name=settings.TTS_CLOUD_VOICE),
+        audio_config=tts.AudioConfig(audio_encoding=tts.AudioEncoding.LINEAR16, sample_rate_hertz=FAST_RATE_HZ,
+                                     speaking_rate=settings.FAST_RATE)), timeout=15)
+    pcm, rate = _wav_pcm(response.audio_content)
+    return pcm, rate, None
+
+
+def fast_voice(text: str) -> tuple[bytes, list[float] | None, str, str]:
+    """Returns (audio, word start times or None, envelope, extension) in ~1-2 s. Raises only if every voice failed;
+    the caller then returns the text without audio."""
+    if settings.TTS_PROVIDER == "fake":
+        n = len(text.split())
+        seconds = n * 0.35 + 0.5
+        env = "".join("27486359"[i % 8] for i in range(int(seconds * ENVELOPE_FPS)))
+        return _silent_wav(seconds), [round(i * 0.35, 2) for i in range(n)], env, "wav"
+    try:
+        pcm, rate, times = _fast_cloud(text)
+    except Exception:  # noqa: BLE001 - try the Chirp3-HD voice so Mittu still speaks
+        log.exception("Fast voice %s failed; trying %s", settings.FAST_VOICE, settings.TTS_CLOUD_VOICE)
+        pcm, rate, times = _fast_chirp(text)
+    pcm, envelope = parrot_dsp(pcm, rate)
+    return _mp3(pcm, rate=rate), times, envelope, "mp3"

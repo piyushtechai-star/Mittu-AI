@@ -1,60 +1,66 @@
-// The reading scene (guide 06/07 + HouseofTech storyboard 5-12): about 9 seconds, skippable, then Mittu speaks.
-//   5. cinematic zoom: a bansuri in a spinning gold ring, notes, ambient santoor   6. Mittu takes off in an arc, feathers
-//   7. 7 face-down cards spread in two rows   8. Mittu hovers over 2-3 (they glow)   9. picks one with his beak
-//   10. 3D flip with a gold swirl, sparkle and chime   11. Mittu lands on the rod beside it: "Suno suno...", voice + subtitles
-//   12. parchment scroll: the reading, lucky colour and number, Ek aur card / Share Karo / Replay Voice
-// The card comes from the backend (POST /reading); Mittu keeps hovering until it has arrived.
+// The reading scene (meeting brief 2026-11-17): a strict ~5 s cinematic, then Mittu speaks, and you can talk back.
+//   0-1.2 s   "Mittu Mittu!" chirp, wings spread, he flies an arc dropping green feathers
+//   1.2-2.5 s a semicircle fan of 7 face-down cards opens
+//   2.5-3.8 s he hovers, dives and takes one card with his beak
+//   3.8-5.0 s the other cards dissolve, the chosen card floats to centre, flips with a gold burst, Mittu lands beside it
+// No hang: the server work started on Home (lib/nav startReading: the backend draws the card in well under a second,
+// then writes + voices the reading). The animation never waits for the voice; a watchdog forces the reveal at ~5.5 s.
+// Mittu's voice is loaded during the animation, played at the reveal (beak and waveform follow its loudness), retried
+// with a fresh link if it fails, and only falls back to the phone's voice when the phone has Hindi. While he speaks
+// (or after), the mic button interrupts him for a follow-up question ("barge-in"), answered by voice.
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApiError } from '@/api/client';
-import { askMittu, getReading, type Reading, type ReadingResult } from '@/api/mittu';
-import { Flourish, FluteZoom, ink, Parchment, Rod, Swirl } from '@/components/Art';
+import { askFollowup, getConfig, getReading, type CardInfo, type Reading } from '@/api/mittu';
+import { Flourish, ink, Parchment, Rod } from '@/components/Art';
+import { MicButton } from '@/components/MicButton';
 import { Mittu, type MittuMode } from '@/components/Mittu';
 import { ReadingFooter, ReportSheet } from '@/components/Report';
 import { Burst, Feather, NightBackdrop, Perch, Vignette } from '@/components/Scene';
-import { FlipCard } from '@/components/TarotCard';
-import { useAuth } from '@/context/AuthContext';
+import { FlipCard, roman } from '@/components/TarotCard';
 import { track } from '@/lib/integrations';
-import { getSkipAnimation, takePendingReading } from '@/lib/nav';
+import { currentReading, getSkipAnimation } from '@/lib/nav';
 import {
-  initSound, isMuted, leaveScene, onMuteChange, play, playVoice, setMuted, speakOnDevice, startAmbient, stopVoice,
+  chirp, initSound, isMuted, loadVoice, onMuteChange, phoneHasHindi, play, setMuted, speakOnDevice, stopVoice, type VoiceClip,
 } from '@/lib/sound';
-import { scene, serif, space, type } from '@/theme';
+import { shareStory } from '@/lib/story';
+import { listen, voiceSupported } from '@/lib/voice';
+import { fonts, scene, space, type } from '@/theme';
 
 const FAN = 7;
 const CANCEL = new Error('cancelled');
 const EASE = Easing.inOut(Easing.cubic);
+const CAP_MS = 5500;        // hard cap for the cinematic once the card is known
+const ENVELOPE_FPS = 20;
 
 type Layout = ReturnType<typeof layout>;
 function layout(w: number, h: number, top: number) {
-  const S = Math.round(Math.min(112, w * 0.28));
-  const perchRod = h - 120;
-  const cw = Math.round(Math.min(w * 0.5, 210, (h * 0.44) / 1.6));
+  const S = Math.round(Math.min(108, w * 0.27));
+  const cw = Math.round(Math.min(w * 0.46, 200, (h * 0.4) / 1.6));
   const ch = cw * 1.6;
-  const cardTop = top + 64;
+  const cardTop = top + 60;
   const final = { x: w / 2, y: cardTop + ch / 2 };
   const landX = Math.min(w / 2 + cw / 2 + S * 0.12, w - S / 2 - 2);
-  const fanCw = Math.min(w * 0.2, 80);
+  const fanCw = Math.min(w * 0.19, 78);
   const fanCh = fanCw * 1.6;
-  // Two rows (storyboard 7): 3 at the back, 4 in front overlapping them.
-  const R = w * 0.78;
-  const row = (deg: number, cy: number) => {
+  // a semicircle fan (brief): 7 cards on an arc, -45° … +45°
+  const R = Math.min(w * 0.42, 190);
+  const cx = w / 2, cy = h * 0.66;
+  const fan = [-45, -30, -15, 0, 15, 30, 45].map((deg) => {
     const a = (deg * Math.PI) / 180;
-    return { x: w / 2 + R * Math.sin(a), y: cy + R - R * Math.cos(a), rot: deg };
-  };
-  const backY = h * 0.36;
-  const fan = [...[-15, 0, 15].map((d) => row(d, backY)), ...[-24, -8, 8, 24].map((d) => row(d, backY + fanCh * 0.7))];
+    return { x: cx + R * Math.sin(a), y: cy - R * Math.cos(a), rot: deg };
+  });
   const land = { x: landX, y: cardTop + ch - S * 0.3 };
-  return { w, h, S, rodY: perchRod, perch: { x: w / 2, y: perchRod - 0.36 * S }, cw, ch, final, land,
+  return { w, h, S, rodY: h - 120, perch: { x: w / 2, y: h - 120 - 0.36 * S }, cw, ch, final, land,
     rod: { x1: w / 2 + cw * 0.15, x2: Math.min(w - 4, landX + S * 0.55), y: land.y + S * 0.27 },
-    fan, fanScale: fanCw / cw, fanCh, panelTop: cardTop + ch + 16 };
+    fan, fanScale: fanCw / cw, fanCh, panelTop: cardTop + ch + 12 };
 }
 
 function useCardMotion() {
@@ -71,21 +77,21 @@ function SceneCard({ m, L, children, z }: { m: CardMotion; L: Layout; children: 
   return <Animated.View pointerEvents="none" style={[{ position: 'absolute', left: 0, top: 0, zIndex: z }, style]}>{children}</Animated.View>;
 }
 
-function MittuActor({ x, y, rot, scale, L, mode, facing, talking, still }: {
+function MittuActor({ x, y, rot, scale, L, mode, facing, talking, still, level }: {
   x: SharedValue<number>; y: SharedValue<number>; rot: SharedValue<number>; scale: SharedValue<number>; L: Layout;
-  mode: MittuMode; facing: 1 | -1; talking: boolean; still: boolean;
+  mode: MittuMode; facing: 1 | -1; talking: boolean; still: boolean; level?: SharedValue<number>;
 }) {
   const style = useAnimatedStyle(() => ({
     transform: [{ translateX: x.value - L.S / 2 }, { translateY: y.value - L.S / 2 }, { rotate: `${rot.value}deg` }, { scale: scale.value }],
   }));
   return (
     <Animated.View pointerEvents="none" style={[{ position: 'absolute', left: 0, top: 0, zIndex: 30 }, style]}>
-      <Mittu mode={mode} size={L.S} facing={facing} talking={talking} still={still} />
+      <Mittu mode={mode} size={L.S} facing={facing} talking={talking} still={still} level={level} />
     </Animated.View>
   );
 }
 
-/** Word-by-word subtitles: words appear as they are spoken; the current one glows. */
+/** Word-by-word karaoke captions: words appear as they are spoken; the current one glows. */
 function Subtitles({ words, current }: { words: string[]; current: number }) {
   const lines = useMemo(() => {
     const out: { from: number; to: number }[] = [];
@@ -105,7 +111,7 @@ function Subtitles({ words, current }: { words: string[]; current: number }) {
   if (!line) return null;
   return (
     <View style={styles.subs} accessibilityLiveRegion="polite">
-      <Text style={{ textAlign: 'center', fontSize: 16, lineHeight: 23, fontWeight: '500' }}>
+      <Text style={{ textAlign: 'center', fontSize: 16, lineHeight: 24, fontFamily: fonts.uiMedium }}>
         {words.slice(line.from, line.to + 1).map((w, k) => {
           const i = line.from + k;
           return (
@@ -118,6 +124,35 @@ function Subtitles({ words, current }: { words: string[]; current: number }) {
   );
 }
 
+/** Live audio waveform bar under Mittu. Driven by the animated loudness (`level`) on the UI thread, so it costs no
+ *  React re-renders (those used to swallow taps on Roko / the mic while Mittu spoke). */
+const BAR_SHAPE = Array.from({ length: 15 }, (_, i) => 0.45 + 0.55 * Math.abs(Math.sin(i * 1.7 + 0.6)));
+function Bar({ k, level }: { k: number; level: SharedValue<number> }) {
+  const style = useAnimatedStyle(() => {
+    const b = Math.min(1, level.value * BAR_SHAPE[k] * 1.25);
+    return { height: 4 + b * 24, opacity: 0.55 + b * 0.45 };
+  });
+  return <Animated.View style={[{ width: 4, borderRadius: 2, backgroundColor: k % 3 === 0 ? scene.saffron : scene.gold }, style]} />;
+}
+function Waveform({ level }: { level: SharedValue<number> }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, height: 30, marginBottom: space.sm }}>
+      {BAR_SHAPE.map((_, i) => <Bar key={i} k={i} level={level} />)}
+    </View>
+  );
+}
+
+/** The panel under the card. While Mittu thinks, speaks or listens it is a plain fixed view: inside a ScrollView
+ *  (react-native-web) taps on Roko / the mic were swallowed as the subtitles changed. The finished scroll scrolls. */
+function Panel({ scroll, top, bottom, children }: { scroll: boolean; top: number; bottom: number; children: React.ReactNode }) {
+  const frame = { position: 'absolute' as const, left: 0, right: 0, top, bottom: 0, zIndex: 35 };
+  return scroll ? (
+    <ScrollView style={frame} contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: bottom + space.lg }}>{children}</ScrollView>
+  ) : (
+    <View style={[frame, { paddingHorizontal: space.lg, paddingBottom: bottom }]}>{children}</View>
+  );
+}
+
 const estimateTimes = (words: string[], duration: number) => {
   const weight = words.map((w) => w.replace(/[^\p{L}\p{N}]/gu, '').length + 2 + (/[.!?…]$/.test(w) ? 6 : /[,]$/.test(w) ? 3 : 0));
   const total = weight.reduce((a, b) => a + b, 0) || 1;
@@ -125,53 +160,58 @@ const estimateTimes = (words: string[], duration: number) => {
   return weight.map((x) => { const t = (acc / total) * duration; acc += x; return t; });
 };
 
-/** "...Lucky color, sunhera peela... lucky number, das!" -> { color: 'Sunhera peela', number: 'Das' } for the scroll. */
-const pickLucky = (re: RegExp, t: string) => {
-  const v = t.match(re)?.[1]?.trim().replace(/^(hai|is)\s+/i, '');
-  return v ? v[0].toUpperCase() + v.slice(1) : null;
-};
-const luckyOf = (t: string) => ({
-  color: pickLucky(/(?:lucky\s*colou?r|लकी\s*(?:कलर|रंग))\s*[,:\-–]?\s*([^.!?…।,]+)/i, t),
-  number: pickLucky(/(?:lucky\s*number|लकी\s*नंबर)\s*[,:\-–]?\s*([^.!?…।,]+)/i, t),
-});
+type Spoken = { text: string; audio_url: string | null; word_times: number[] | null; envelope?: string | null };
+type Message = { text: string; helplines?: { name: string; phone: string }[] };
 
 export default function ReadingScreen() {
   const insets = useSafeAreaInsets();
-  const { refresh } = useAuth();
   const reducedMotion = useReducedMotion();
-  const input = useRef(takePendingReading()).current;
+  const ticket = useRef(currentReading()).current;
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const L = useMemo(() => (size ? layout(size.w, size.h, insets.top) : null), [size, insets.top]);
 
-  const [phase, setPhase] = useState<'intro' | 'revealed' | 'message'>('intro');
-  const [result, setResult] = useState<ReadingResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // intro → reveal (card face up, Mittu speaking / thinking) → done (parchment); message = support / off-topic / error
+  const [phase, setPhase] = useState<'intro' | 'reveal' | 'done' | 'message'>('intro');
+  const [card, setCard] = useState<{ id: string; card: CardInfo; orientation: 'upright' | 'reversed' } | null>(null);
+  const [reading, setReading] = useState<Reading | null>(null);
+  const [message, setMessage] = useState<Message | null>(null);
   const [mode, setMode] = useState<MittuMode>('idle');
   const [facing, setFacing] = useState<1 | -1>(1);
   const [talking, setTalking] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [thinking, setThinking] = useState(false);
+  const [words, setWords] = useState<string[]>([]);
   const [wordIdx, setWordIdx] = useState(-1);
+  const [useLevel, setUseLevel] = useState(false);
+  const [voiceFailed, setVoiceFailed] = useState(false);
   const [slot, setSlot] = useState(3);
   const [burst, setBurst] = useState(0);
   const [feathers, setFeathers] = useState<{ id: number; x: number; y: number; dir: 1 | -1 }[]>([]);
   const [muted, setMutedState] = useState(isMuted());
   const [reportId, setReportId] = useState<string | null>(null);
-  const [flute, setFlute] = useState(false);
   const [perched, setPerched] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [heard, setHeard] = useState('');
+  const [followups, setFollowups] = useState<{ question: string; text: string }[]>([]);
+  const [followupsLeft, setFollowupsLeft] = useState(2);
+  const [sharing, setSharing] = useState<'idle' | 'busy' | 'copied'>('idle');
 
   const mx = useSharedValue(0), my = useSharedValue(0), mrot = useSharedValue(0), mscale = useSharedValue(1);
+  const level = useSharedValue(0);
+  const micLevel = useSharedValue(0);
   const dim = useSharedValue(0);
-  const perchO = useSharedValue(1);   // the empty perch fades once Mittu has left it (it would cross the subtitles)
+  const perchO = useSharedValue(1);
   const cards = [useCardMotion(), useCardMotion(), useCardMotion(), useCardMotion(), useCardMotion(), useCardMotion(), useCardMotion()];
 
   const run = useRef({ cancelled: false, timers: [] as ReturnType<typeof setTimeout>[], flaps: undefined as ReturnType<typeof setInterval> | undefined });
-  const resultRef = useRef<Promise<ReadingResult> | null>(null);
-  const audioAt = useRef(0);
-  const stopSpeech = useRef<(() => void) | null>(null);
-  const completed = useRef(false);
+  const revealed = useRef(false);
+  const chosenRef = useRef(Math.floor(Math.random() * FAN));
   const facingRef = useRef<1 | -1>(1);
-  const chosenRef = useRef(3);
+  const preload = useRef<Promise<VoiceClip> | null>(null);
+  const clipRef = useRef<VoiceClip | null>(null);
+  const stopSpeech = useRef<(() => void) | null>(null);
+  const stopListening = useRef<(() => void) | null>(null);
+  const completed = useRef(false);
   const face = useCallback((d: 1 | -1) => { facingRef.current = d; setFacing(d); }, []);
 
   const wait = useCallback((ms: number) => new Promise<void>((resolve, reject) => {
@@ -179,7 +219,7 @@ export default function ReadingScreen() {
   }), []);
   const flaps = (every: number | null) => {
     clearInterval(run.current.flaps);
-    if (every) run.current.flaps = setInterval(() => play('flap', 0.4), every);
+    if (every) run.current.flaps = setInterval(() => play('flap', 0.35), every);
   };
   const flyTo = (x: number, y: number, ms: number) => {
     if (Math.abs(x - mx.value) > 6) face(x < mx.value ? -1 : 1);
@@ -188,64 +228,107 @@ export default function ReadingScreen() {
     return wait(ms);
   };
 
-  // ---------------------------------------------------------------- the voice
-  const speak = useCallback(async (r: Reading) => {
+  // ---------------------------------------------------------------- Mittu speaks (reading or follow-up reply)
+  const finishSpeaking = useCallback(() => {
+    stopSpeech.current = null;
+    clipRef.current = null;
+    setTalking(false);
+    setSpeaking(false);
+    setUseLevel(false);
+    level.value = withTiming(0, { duration: 120 });
+    setMode('idle');
+    setPhase((p) => (p === 'reveal' ? 'done' : p));
+  }, [level]);
+
+  const speak = useCallback(async (s: Spoken, opts: { preloaded?: Promise<VoiceClip> | null; refetch?: () => Promise<string | null> } = {}) => {
     stopSpeech.current?.();
     stopVoice();
+    const ws = s.text.split(/\s+/);
+    setWords(ws);
     setWordIdx(-1);
+    setVoiceFailed(false);
+    setThinking(true);   // "Mittu Mittu! Soch raha hoon…" until the voice starts: no flash of the result scroll
+    let clip: VoiceClip | null = null;
+    if (s.audio_url) clip = await (opts.preloaded ?? loadVoice(s.audio_url)).catch(() => null);
+    if (!clip && opts.refetch) {   // expired link or a hiccup: one retry with a fresh link
+      const url = await opts.refetch().catch(() => null);
+      if (url) clip = await loadVoice(url).catch(() => null);
+    }
+    setThinking(false);
     setSpeaking(true);
-    play('squawk', 0.9);
+    setMode('talk');
     setTalking(true);
-    await new Promise((res) => setTimeout(res, 650));
-    setTalking(false);
-    const words = r.text.split(/\s+/);
-    const done = () => {
-      stopSpeech.current = null;
-      setTalking(false);
-      setSpeaking(false);
-      setMode('idle');
-      setWordIdx(words.length);
-      if (!completed.current) {
-        completed.current = true;
-        track('reading_completed', { card: r.card.id });
-      }
-    };
-    let url = r.audio_url;
-    if (url && Date.now() - audioAt.current > 50 * 60_000) url = (await getReading(r.id).catch(() => null))?.audio_url ?? null; // signed URLs last 1 h
-    if (url) {
-      try {
-        let times = r.word_times;
-        stopSpeech.current = await playVoice(url, (t, d) => {
-          times ??= d > 0 ? estimateTimes(words, d) : null;
-          if (!times) return;
+    await chirp();   // every reading starts with Mittu's "Mittu Mittu!"
+    if (clip) {
+      const env = s.envelope ?? '';
+      let times = s.word_times;
+      setUseLevel(!!env);
+      clipRef.current = clip;
+      stopSpeech.current = () => clip?.stop();
+      clip.play((t) => {
+        times ??= clip!.duration() > 0 ? estimateTimes(ws, clip!.duration()) : null;
+        if (times) {
           let i = -1;
           while (i + 1 < times.length && times[i + 1] <= t + 0.05) i++;
           setWordIdx(i);
-        }, done);
-        audioAt.current = audioAt.current || Date.now();
-        setMode('talk');
-        setTalking(true);
-        return;
-      } catch {}
+        }
+        if (env) {
+          const k = Math.floor(t * ENVELOPE_FPS);
+          level.value = withTiming((Number(env[k]) || 0) / 9, { duration: 60 });
+        }
+      }, () => { clip?.stop(); finishSpeaking(); });
+      return;
     }
-    // No clip: the phone's own voice, with estimated subtitle timing.
-    const times = estimateTimes(words, words.length * 0.36);
-    let t0 = 0;
-    const tick = setInterval(() => {
-      if (!t0) return;
-      const t = (Date.now() - t0) / 1000;
-      let i = -1;
-      while (i + 1 < times.length && times[i + 1] <= t) i++;
-      setWordIdx(i);
-    }, 80);
-    setMode('talk');
-    setTalking(true);
-    stopSpeech.current = () => { clearInterval(tick); stopVoice(); done(); };
-    speakOnDevice(r.text, () => { t0 = Date.now(); }, () => { clearInterval(tick); done(); });
-    if (isMuted()) t0 = Date.now();
-  }, []);
+    if (await phoneHasHindi()) {   // last resort: the phone's own Hindi voice
+      const times = estimateTimes(ws, ws.length * 0.36);
+      let t0 = 0;
+      const tick = setInterval(() => {
+        if (!t0) return;
+        const t = (Date.now() - t0) / 1000;
+        let i = -1;
+        while (i + 1 < times.length && times[i + 1] <= t) i++;
+        setWordIdx(i);
+      }, 80);
+      stopSpeech.current = () => { clearInterval(tick); stopVoice(); };
+      speakOnDevice(s.text, () => { t0 = Date.now(); }, () => { clearInterval(tick); finishSpeaking(); });
+      if (isMuted()) t0 = Date.now();
+      return;
+    }
+    // No voice at all: show the words, offer "Phir se suniye" on the scroll.
+    setVoiceFailed(true);
+    setWordIdx(ws.length);
+    finishSpeaking();
+  }, [finishSpeaking, level]);
 
-  // ---------------------------------------------------------------- placing things
+  const speakReading = useCallback((r: Reading, preloaded?: Promise<VoiceClip> | null) => speak(r, {
+    preloaded,
+    refetch: async () => (await getReading(r.id)).audio_url,
+  }).then(() => {
+    if (!completed.current) {
+      completed.current = true;
+      track('reading_completed', { card: r.card.id });
+    }
+  }), [speak]);
+
+  // ---------------------------------------------------------------- the reveal (card face up, then the voice)
+  const showMessage = useCallback((m: Message) => {
+    run.current.cancelled = true;
+    run.current.timers.forEach(clearTimeout);
+    clearInterval(run.current.flaps);
+    setMessage(m);
+    setPhase('message');
+    setPerched(false);
+    perchO.value = withTiming(1, { duration: 500 });
+    cards.forEach((c) => { c.opacity.value = withTiming(0, { duration: 400 }); });
+    if (L) {
+      setMode('fly');
+      mx.value = withTiming(L.perch.x, { duration: 900, easing: EASE });
+      my.value = withTiming(L.perch.y, { duration: 900, easing: EASE });
+      setTimeout(() => setMode('idle'), 950);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [L]);
+
   const placeFinal = useCallback((chosen: number) => {
     if (!L) return;
     cards.forEach((c, i) => {
@@ -262,150 +345,125 @@ export default function ReadingScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [L]);
 
-  const reveal = useCallback((r: ReadingResult, chosen: number) => {
-    setResult(r);
-    if (r.kind !== 'reading') return;
-    setPhase('revealed');
-    void refresh();
-    void speak(r);
-  }, [refresh, speak]);
+  const reveal = useCallback(async () => {
+    if (revealed.current || !ticket) return;
+    revealed.current = true;
+    setPhase('reveal');
+    setFeathers([]);
+    clearInterval(run.current.flaps);
+    // (no account refresh here: Home refreshes today's count when it comes back into view; refreshing during the
+    // screen transition re-rendered the route guards and could bounce the web version back to Home)
+    // the card is face up; Mittu's words may still be on their way (they started on Home)
+    setThinking(true);
+    try {
+      const r = await ticket.speak;
+      setThinking(false);
+      if (!r) return;
+      setReading(r);
+      void speakReading(r, preload.current);
+    } catch (e) {
+      setThinking(false);
+      showMessage({ text: e instanceof ApiError && e.status === 402 ? 'Aapka plan active nahi hai.' : (e as Error).message });
+    }
+  }, [ticket, speakReading, showMessage]);
 
-  // ---------------------------------------------------------------- the cinematic
+  // ---------------------------------------------------------------- the cinematic (max ~5 s)
   const cinematic = useCallback(async (chosen: number) => {
-    if (!L || !resultRef.current) return;
+    if (!L || !ticket) return;
     const R = run.current;
     const fan = L.fan;
-    // 5) cinematic zoom: bansuri in a gold ring, ambient santoor, whoosh
-    play('whoosh', 0.8);
-    startAmbient();
-    dim.value = withTiming(1, { duration: 900 });
-    setFlute(true);
-    await wait(1800);
-    setFlute(false);
-    // 2) take off in an arc, feathers fall; the empty perch fades away
+    // 0-1.2 s: chirp, wings spread, an arc across the sky with falling feathers
+    void chirp();
     setMode('fly');
-    flaps(170);
-    perchO.value = withDelay(500, withTiming(0, { duration: 900 }));
-    const arc = [[L.w * 0.74, L.perch.y - L.h * 0.2], [L.w * 0.86, L.h * 0.3], [L.w * 0.55, L.h * 0.1], [L.w * 0.22, L.h * 0.15], [L.w * 0.5, L.h * 0.2]];
-    const seg = 1600 / arc.length;
+    flaps(150);
+    dim.value = withTiming(1, { duration: 600 });
+    perchO.value = withDelay(300, withTiming(0, { duration: 600 }));
+    const arc = [[L.w * 0.78, L.h * 0.42], [L.w * 0.6, L.h * 0.12], [L.w * 0.25, L.h * 0.16], [L.w * 0.5, L.h * 0.3]];
+    const seg = 1200 / arc.length;
     mx.value = withSequence(...arc.map(([x]) => withTiming(x, { duration: seg, easing: Easing.inOut(Easing.sin) })));
     my.value = withSequence(...arc.map(([, y]) => withTiming(y, { duration: seg, easing: Easing.inOut(Easing.sin) })));
-    mrot.value = withSequence(withTiming(-18, { duration: seg }), withTiming(-6, { duration: seg }), withTiming(8, { duration: seg }),
-      withTiming(10, { duration: seg }), withTiming(0, { duration: seg }));
-    [300, 700, 1150].forEach((t, k) => R.timers.push(setTimeout(() => {
+    mrot.value = withSequence(withTiming(-16, { duration: seg }), withTiming(8, { duration: seg }), withTiming(10, { duration: seg }), withTiming(0, { duration: seg }));
+    [250, 600, 950].forEach((t, k) => R.timers.push(setTimeout(() => {
       setFeathers((f) => [...f, { id: Date.now() + k, x: mx.value, y: my.value + 10, dir: k % 2 ? 1 : -1 }]);
     }, t)));
-    R.timers.push(setTimeout(() => face(-1), seg * 2), setTimeout(() => face(1), seg * 4));
-    await wait(1600);
-    // 3) seven cards fan out
+    R.timers.push(setTimeout(() => face(-1), seg * 2), setTimeout(() => face(1), seg * 3));
+    await wait(1200);
+    // 1.2-2.5 s: the semicircle fan opens with a glow
     setMode('hover');
-    flaps(240);
-    play('shuffle', 0.9);
+    flaps(220);
     cards.forEach((c, i) => {
-      const spring = { damping: 16, stiffness: 120 };
+      const spring = { damping: 17, stiffness: 140 };
       R.timers.push(setTimeout(() => {
-        c.opacity.value = withTiming(1, { duration: 300 });
+        c.opacity.value = withTiming(1, { duration: 250 });
         c.x.value = withSpring(fan[i].x, spring);
         c.y.value = withSpring(fan[i].y, spring);
         c.rot.value = withSpring(fan[i].rot, spring);
         c.scale.value = withSpring(L.fanScale, spring);
-      }, i * 70));
+      }, i * 50));
     });
-    await wait(1400);
-    // 4) suspense: hover over at least two other cards, and keep "choosing" (card to card, slower and slower)
-    //    until the backend's card and Mittu's voice are ready (the acted voice takes ~10 s to make).
-    let ready = false;
-    resultRef.current.then(() => { ready = true; }, () => { ready = true; });
-    const others = [0, 1, 2, 3, 4, 5, 6].filter((i) => i !== chosen);
-    let last = -1;
-    for (let n = 0; n < 2 || (!ready && n < 40); n++) {
-      const pool = others.filter((i) => i !== last);
-      const i = pool[Math.floor(Math.random() * pool.length)];
-      last = i;
-      setMode('fly');
-      await flyTo(fan[i].x, fan[i].y - L.fanCh * 0.95, n < 2 ? 380 : 620);
-      setMode('hover');
-      cards[i].y.value = withSequence(withTiming(fan[i].y - 10, { duration: 220 }), withTiming(fan[i].y, { duration: 220 }));
-      cards[i].scale.value = withSequence(withTiming(L.fanScale * 1.12, { duration: 220 }), withTiming(L.fanScale, { duration: 320 }));
-      await wait(n < 2 ? 220 : 650);
-    }
-    const r = await resultRef.current;   // API errors (limit reached, busy) are thrown here → message
-    if (R.cancelled) throw CANCEL;
-    if (r.kind !== 'reading') return r;
-    const pc = fan[chosen];
+    await flyTo(L.w / 2, fan[3].y - L.fanCh * 1.3, 700);
+    await wait(600);
+    // 2.5-3.8 s: one brisk look at another card, then the dive for the chosen one
+    const other = [0, 1, 2, 3, 4, 5, 6].filter((i) => i !== chosen)[Math.floor(Math.random() * 6)];
     setMode('fly');
-    await flyTo(pc.x, pc.y - L.fanCh * 1.05, 360);
+    await flyTo(fan[other].x, fan[other].y - L.fanCh * 0.95, 300);
+    cards[other].scale.value = withSequence(withTiming(L.fanScale * 1.12, { duration: 150 }), withTiming(L.fanScale, { duration: 200 }));
+    await wait(150);
+    const pc = fan[chosen];
+    await flyTo(pc.x, pc.y - L.fanCh * 1.0, 300);
     setMode('hover');
-    await wait(240);
-    // dive and take the card with the beak
+    cards[chosen].scale.value = withTiming(L.fanScale * 1.15, { duration: 150 });
+    await wait(120);
     const rad = (pc.rot * Math.PI) / 180;
     const top = { x: pc.x + Math.sin(rad) * (L.fanCh / 2), y: pc.y - Math.cos(rad) * (L.fanCh / 2) };
     setMode('pick');
     setSlot(chosen);
     const f = facingRef.current;
-    await flyTo(top.x - 0.32 * L.S * f, top.y - 0.05 * L.S, 260);
-    await wait(140);
-    // carry it to centre stage; the other cards fade away
-    setMode('fly');
-    const centre = { x: L.w / 2, y: L.h * 0.42 };
-    const carryScale = L.fanScale * 1.25;
-    const carryH = L.ch * carryScale;
-    const dir: 1 | -1 = centre.x < pc.x - 10 ? -1 : centre.x > pc.x + 10 ? 1 : f;
-    face(dir);
+    await flyTo(top.x - 0.32 * L.S * f, top.y - 0.05 * L.S, 230);
+    await wait(100);
+    // 3.8-5.0 s: the others dissolve; the card floats to centre stage and flips; Mittu lands beside it
     cards.forEach((c, i) => {
       if (i === chosen) return;
-      c.opacity.value = withTiming(0, { duration: 500 });
-      c.y.value = withTiming(fan[i].y + 40, { duration: 500 });
+      c.opacity.value = withTiming(0, { duration: 350 });
+      c.scale.value = withTiming(L.fanScale * 0.8, { duration: 350 });
     });
     const k = cards[chosen];
-    const mTarget = { x: centre.x - 0.34 * L.S * dir, y: centre.y - carryH / 2 + 0.06 * L.S };
-    k.x.value = withTiming(centre.x, { duration: 800, easing: EASE });
-    k.y.value = withTiming(centre.y, { duration: 800, easing: EASE });
-    k.scale.value = withTiming(carryScale, { duration: 800 });
-    k.rot.value = withSequence(withTiming(-pc.rot * 0.5 - 6, { duration: 300 }), withTiming(5, { duration: 250 }), withTiming(0, { duration: 250 }));
-    await flyTo(mTarget.x, mTarget.y, 800);
-    // let go: Mittu flies up, the card floats to its place and flips
-    play('whoosh', 0.35);
     setMode('fly');
-    flyTo(L.w * 0.84, L.h * 0.14, 600).catch(() => {});
-    k.x.value = withTiming(L.final.x, { duration: 750, easing: Easing.out(Easing.cubic) });
-    k.y.value = withSequence(withTiming(centre.y + 14, { duration: 160 }), withTiming(L.final.y, { duration: 750, easing: Easing.out(Easing.cubic) }));
-    k.scale.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
-    await wait(920);
-    k.flip.value = withTiming(180, { duration: 900, easing: Easing.bezier(0.45, 0, 0.2, 1) });
-    await wait(430);
+    flyTo(L.w * 0.84, L.h * 0.14, 500).catch(() => {});
+    k.x.value = withTiming(L.final.x, { duration: 550, easing: Easing.out(Easing.cubic) });
+    k.y.value = withTiming(L.final.y, { duration: 550, easing: Easing.out(Easing.cubic) });
+    k.rot.value = withTiming(0, { duration: 450 });
+    k.scale.value = withTiming(1, { duration: 550, easing: Easing.out(Easing.cubic) });
+    await wait(560);
+    play('flip', 0.9);
+    k.flip.value = withTiming(180, { duration: 460, easing: Easing.bezier(0.45, 0, 0.2, 1) });
+    await wait(230);
     setBurst(Date.now());
-    play('chime', 0.9);
-    dim.value = withTiming(0.6, { duration: 900 });
-    await wait(470);
-    // 11) Mittu lands on the rod beside the card
+    dim.value = withTiming(0.6, { duration: 600 });
     setPerched(true);
-    setMode('fly');
     face(L.land.x < mx.value ? -1 : 1);
-    mx.value = withTiming(L.land.x, { duration: 700, easing: Easing.out(Easing.cubic) });
-    my.value = withSequence(withTiming(L.land.y - 30, { duration: 450 }), withTiming(L.land.y, { duration: 250 }));
-    mscale.value = withTiming(0.85, { duration: 700 });
-    await wait(700);
-    flaps(null);
+    mx.value = withTiming(L.land.x, { duration: 420, easing: Easing.out(Easing.cubic) });
+    my.value = withSequence(withTiming(L.land.y - 26, { duration: 260 }), withTiming(L.land.y, { duration: 160 }));
+    mscale.value = withTiming(0.85, { duration: 420 });
+    await wait(430);
+    clearInterval(R.flaps);
     face(-1);
     setMode('land');
-    play('flap', 0.35);
-    await wait(250);
-    return r;
+    play('flap', 0.3);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [L, wait, face]);
+  }, [L, wait, face, ticket]);
 
   // ---------------------------------------------------------------- start
   useEffect(() => {
-    if (!input) {
+    if (!ticket) {
       router.replace('/home');
       return;
     }
-    track('reading_started', { category: input.category });
-    resultRef.current = askMittu(input.question, input.category);
-    resultRef.current.catch((e: ApiError) => {
-      setError(e.status === 402 ? 'Aapka plan active nahi hai.' : e.message);
-    });
+    track('reading_started', { category: ticket.category });
+    getConfig().then((c) => setFollowupsLeft(c.followupsPerReading ?? 2)).catch(() => {});
+    // the card (instant), then the words + voice: preload the clip the moment its link arrives
+    ticket.draw.then((d) => { if (d.kind === 'card') setCard(d); }).catch(() => {});
+    ticket.speak.then((r) => { if (r?.audio_url) preload.current = loadVoice(r.audio_url, 15_000); }).catch(() => {});
     const off = onMuteChange(setMutedState);
     const R = run.current;
     return () => {
@@ -413,98 +471,128 @@ export default function ReadingScreen() {
       R.timers.forEach(clearTimeout);
       clearInterval(R.flaps);
       stopSpeech.current?.();
+      stopListening.current?.();
       stopVoice();
-      leaveScene();
+      preload.current?.then((c) => c.stop()).catch(() => {});
       off();
     };
-  }, [input]);
+  }, [ticket]);
 
   useEffect(() => {
-    if (!L || !resultRef.current) return;
+    if (!L || !ticket) return;
     mx.value = L.perch.x;
     my.value = L.perch.y;
-    cards.forEach((c) => { c.x.value = L.w / 2; c.y.value = L.h * 0.45; c.scale.value = L.fanScale * 0.6; });
-    const chosen = Math.floor(Math.random() * FAN);
-    chosenRef.current = chosen;
+    cards.forEach((c) => { c.x.value = L.w / 2; c.y.value = L.h * 0.62; c.scale.value = L.fanScale * 0.6; });
+    const chosen = chosenRef.current;
     (async () => {
       await initSound();
-      const skip = reducedMotion || (await getSkipAnimation());
+      let d;
+      const quick = reducedMotion || (await getSkipAnimation());
+      const started = Date.now();
+      // the card normally arrives long before it's needed; the cinematic itself never waits more than CAP_MS
+      const cine = quick ? null : cinematic(chosen).catch((e) => { if (e !== CANCEL) throw e; });
       try {
-        if (skip) {
-          track('reading_skipped_animation', { reason: reducedMotion ? 'reduced_motion' : 'setting' });
-          startAmbient();
-          const r = await resultRef.current!;
-          if (r.kind !== 'reading') return showMessage(r);
-          setSlot(chosen);
-          placeFinal(chosen);
-          play('chime', 0.8);
-          reveal(r, chosen);
-        } else {
-          const r = await cinematic(chosen);
-          if (r && r.kind !== 'reading') return showMessage(r);
-          if (r) reveal(r, chosen);
-        }
+        d = await ticket.draw;
       } catch (e) {
-        if (e !== CANCEL) showMessage(null);   // API error: `error` holds the message
+        return showMessage({ text: e instanceof ApiError && e.status === 402 ? 'Aapka plan active nahi hai.' : (e as Error).message });
       }
+      if (d.kind !== 'card') return showMessage({ text: d.text, helplines: d.kind === 'support' ? d.helplines : undefined });
+      if (quick) {
+        track('reading_skipped_animation', { reason: reducedMotion ? 'reduced_motion' : 'quick_draw' });
+        setSlot(chosen);
+        placeFinal(chosen);
+        play('flip', 0.8);
+        setBurst(Date.now());
+        return reveal();
+      }
+      // hard cap: whatever happens to the timers, the card is face up by ~5.5 s
+      const left = Math.max(400, CAP_MS - (Date.now() - started));
+      const capped = await Promise.race([cine?.then(() => 'done'), new Promise((r) => setTimeout(() => r('cap'), left))]);
+      if (run.current.cancelled && revealed.current) return;
+      if (capped === 'cap') {
+        run.current.cancelled = true;
+        run.current.timers.forEach(clearTimeout);
+        setSlot(chosen);
+        placeFinal(chosen);
+        setBurst(Date.now());
+      }
+      void reveal();
     })();
     // Runs once, when the scene has its size.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [L !== null]);
 
-  function showMessage(r: ReadingResult | null) {
+  function quickReveal() {
+    if (phase !== 'intro' || !card) return;
+    track('reading_skipped_animation', { reason: 'button' });
+    run.current.cancelled = true;
     run.current.timers.forEach(clearTimeout);
-    flaps(null);
-    setFlute(false);
-    setPerched(false);
-    if (r) setResult(r);
-    setPhase('message');
-    perchO.value = withTiming(1, { duration: 500 });   // Mittu flies back to it
-    cards.forEach((c) => { c.opacity.value = withTiming(0, { duration: 400 }); });
-    if (L) {
-      setMode('fly');
-      flyTo(L.perch.x, L.perch.y, 900).then(() => setMode('idle')).catch(() => {});
+    clearInterval(run.current.flaps);
+    setFeathers([]);
+    setSlot(chosenRef.current);
+    placeFinal(chosenRef.current);
+    play('flip', 0.7);
+    setBurst(Date.now());
+    void reveal();
+  }
+
+  // ---------------------------------------------------------------- talk back (barge-in follow-up)
+  async function ask(question: string) {
+    if (!reading || question.trim().length < 2) return;
+    setThinking(true);
+    setPhase('reveal');
+    try {
+      const r = await askFollowup(reading.id, question.trim());
+      setThinking(false);
+      if (r.kind !== 'followup') {
+        setFollowups((f) => [...f, { question, text: r.text }]);
+        setPhase('done');
+        return;
+      }
+      setFollowupsLeft(r.left);
+      setFollowups((f) => [...f, { question, text: r.text }]);
+      track('followup_answered', { card: reading.card.id });
+      await speak(r);
+    } catch (e) {
+      setThinking(false);
+      setFollowups((f) => [...f, { question, text: (e as Error).message }]);
+      setPhase('done');
     }
   }
 
-  async function skip() {
-    if (!run.current || phase !== 'intro' || run.current.cancelled) return;
-    track('reading_skipped_animation', { reason: 'button' });
-    const R = run.current;
-    R.cancelled = true;
-    R.timers.forEach(clearTimeout);
-    flaps(null);
-    setFeathers([]);
-    setFlute(false);
-    const r = await resultRef.current!.catch(() => null);
-    if (!r || r.kind !== 'reading') return showMessage(r);
-    const chosen = chosenRef.current;
-    setSlot(chosen);
-    placeFinal(chosen);
-    play('chime', 0.7);
-    setBurst(Date.now());
-    reveal(r, chosen);
+  function toggleMic() {
+    if (listening) {
+      stopListening.current?.();
+      return;
+    }
+    // interrupt Mittu right away
+    stopSpeech.current?.();
+    stopVoice();
+    finishSpeaking();
+    setHeard('');
+    setListening(true);
+    let said = '';
+    stopListening.current = listen((t) => { said = t; setHeard(t); }, () => {
+      stopListening.current = null;
+      setListening(false);
+      micLevel.value = withTiming(0, { duration: 150 });
+      if (said.trim().length >= 2) void ask(said);
+    }, (l) => { micLevel.value = withTiming(l, { duration: 90 }); });
   }
 
   async function share(r: Reading) {
-    const message = `🦜 Mittu ne mere liye ${r.card.name} (${r.card.hindi}) ka card nikaala!\n\n${r.text}\n\n— Mittu AI · Sirf manoranjan ke liye`;
     track('reading_shared', { card: r.card.id });
-    try {
-      await Share.share({ message });
-    } catch {
-      // Browsers without a share sheet: copy instead.
-      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(message).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2500); }, () => {});
-      }
-    }
+    setSharing('busy');
+    const result = await shareStory(r).catch(() => 'failed' as const);
+    setSharing(result === 'copied' ? 'copied' : 'idle');
+    if (result === 'copied') setTimeout(() => setSharing('idle'), 2500);
   }
 
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
   const perchStyle = useAnimatedStyle(() => ({ opacity: perchO.value }));
-  const reading = result?.kind === 'reading' ? result : null;
-  const words = useMemo(() => (reading ? reading.text.split(/\s+/) : []), [reading]);
-  const lucky = useMemo(() => (reading ? luckyOf(reading.text) : { color: null, number: null }), [reading]);
   const still = !!reducedMotion;
+  const shown = card?.card ?? null;
+  const canAsk = voiceSupported && !!reading && followupsLeft > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: scene.night }} onLayout={(e) => {
@@ -519,79 +607,120 @@ export default function ReadingScreen() {
             <Perch x={L.perch.x} rodY={L.rodY} />
           </Animated.View>
           {cards.map((c, i) => (
-            <SceneCard key={i} m={c} L={L} z={i === slot && phase !== 'intro' ? 22 : 10 + (i >= 3 ? 2 : 0) + (i === slot ? 5 : 0)}>
-              <FlipCard card={i === slot && reading ? reading.card : null} reversed={reading?.orientation === 'reversed'} width={L.cw} flip={c.flip} />
+            <SceneCard key={i} m={c} L={L} z={i === slot && phase !== 'intro' ? 22 : 10 + i + (i === slot ? 5 : 0)}>
+              <FlipCard card={i === slot ? shown : null} reversed={card?.orientation === 'reversed'} width={L.cw} flip={c.flip} />
             </SceneCard>
           ))}
           {feathers.map((f) => <Feather key={f.id} x={f.x} y={f.y} dir={f.dir} />)}
-          <MittuActor x={mx} y={my} rot={mrot} scale={mscale} L={L} mode={mode} facing={facing} talking={talking} still={still} />
+          <MittuActor x={mx} y={my} rot={mrot} scale={mscale} L={L} mode={mode} facing={facing} talking={talking && !useLevel}
+            still={still} level={useLevel ? level : undefined} />
           <Rod x1={L.rod.x1} x2={L.rod.x2} y={L.rod.y} visible={perched} />
-          {burst ? <Swirl key={`s${burst}`} x={L.final.x} y={L.final.y} width={L.cw} /> : null}
           {burst ? <Burst key={burst} seed={burst} x={L.final.x} y={L.final.y} radius={L.cw * 0.9} /> : null}
           <Vignette width={L.w} height={L.h} />
-          {flute ? <FluteZoom width={L.w} height={L.h} /> : null}
 
-          {phase === 'intro' && !error ? (
+          {phase === 'intro' ? (
             <View pointerEvents="none" style={[styles.status, { bottom: insets.bottom + 24 }]}>
               <Text style={[type.subhead, { color: 'rgba(246,238,219,0.7)', textAlign: 'center' }]}>Mittu card chun raha hai…</Text>
             </View>
           ) : null}
 
-          {phase === 'revealed' && reading ? (
-            <ScrollView style={{ position: 'absolute', left: 0, right: 0, top: L.panelTop, bottom: 0, zIndex: 35 }}
-              contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: insets.bottom + space.lg }}>
-              <Text style={styles.caption}>Suno suno… Mittu ne nikaala hai {reading.card.hindi} ka card!</Text>
-              {speaking ? (
-                <>
-                  <Subtitles words={words} current={wordIdx} />
-                  <Pressable accessibilityRole="button" onPress={() => { stopSpeech.current?.(); stopVoice(); }} style={[styles.ghostBtn, { flexGrow: 0, flexShrink: 0, flexBasis: 'auto' }]}>
-                    <Ionicons name="stop" size={17} color={scene.goldSoft} />
-                    <Text style={styles.ghostText}>Roko, result dikhao</Text>
-                  </Pressable>
-                </>
-              ) : (
+          {(phase === 'reveal' || phase === 'done') && shown ? (
+            <Panel scroll={!(listening || thinking || speaking) && !!reading} top={L.panelTop} bottom={insets.bottom}>
+              <Text style={styles.caption}>
+                {roman(shown.id)} • {shown.name} — {shown.hindi}{card?.orientation === 'reversed' ? ' (Ulta)' : ''}
+              </Text>
+
+              {listening ? (
+                <View style={{ alignItems: 'center' }}>
+                  <View style={[styles.subs, { alignSelf: 'stretch' }]}>
+                    <Text style={{ textAlign: 'center', color: scene.goldSoft, fontFamily: fonts.uiMedium, fontSize: 16 }}>
+                      {heard || 'Boliye… Mittu sun raha hai 🦜'}
+                    </Text>
+                  </View>
+                  <MicButton listening level={micLevel} onPress={toggleMic} size={64} />
+                </View>
+              ) : thinking ? (
+                <View style={[styles.subs, { alignItems: 'center' }]}>
+                  <Text style={{ color: scene.goldSoft, fontFamily: fonts.uiMedium, fontSize: 16 }}>Mittu Mittu! Soch raha hoon…</Text>
+                </View>
+              ) : speaking ? (
+                <View style={{ alignItems: 'center' }}>
+                  <View style={{ alignSelf: 'stretch' }}><Subtitles words={words} current={wordIdx} /></View>
+                  <Waveform level={level} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.md }}>
+                    <Pressable accessibilityRole="button" onPress={() => { stopSpeech.current?.(); stopVoice(); finishSpeaking(); }}
+                      style={styles.pillBtn}>
+                      <Ionicons name="stop" size={16} color={scene.goldSoft} />
+                      <Text style={styles.ghostText}>Roko</Text>
+                    </Pressable>
+                    {canAsk ? <MicButton listening={false} level={micLevel} onPress={toggleMic} size={58} label="Tap to interrupt and ask a follow-up" /> : null}
+                  </View>
+                  {canAsk ? <Text style={[type.footnote, { color: scene.goldSoft, marginTop: 2 }]}>Tap to Interrupt / Ask Follow-up 🎙️</Text> : null}
+                </View>
+              ) : reading ? (
                 <Parchment>
                   <Text style={styles.scrollTitle}>Aapka result</Text>
                   <Flourish />
-                  <Text style={styles.scrollCard}>
-                    {reading.card.name} · {reading.card.hindi}{reading.orientation === 'reversed' ? ' (Ulta)' : ''}
-                  </Text>
-                  <Text style={{ color: ink.text, fontSize: 15.5, lineHeight: 23, marginTop: space.sm }}>{reading.text}</Text>
-                  {lucky.color || lucky.number ? (
+                  {reading.sandesh ? (
+                    <>
+                      <Text style={styles.section}>Card ka Sandesh</Text>
+                      <Text style={styles.scrollText}>{reading.sandesh}</Text>
+                      <Text style={styles.section}>Mittu ki Salah</Text>
+                      <Text style={styles.scrollText}>{reading.salah}</Text>
+                    </>
+                  ) : <Text style={styles.scrollText}>{reading.text}</Text>}
+                  {reading.lucky_color || reading.lucky_number ? (
                     <View style={{ flexDirection: 'row', gap: space.sm, marginTop: space.md }}>
-                      {lucky.color ? (
-                        <View style={styles.luckyBox}><Text style={styles.luckyLabel}>Lucky colour</Text><Text style={styles.luckyValue}>{lucky.color}</Text></View>
+                      {reading.lucky_color ? (
+                        <View style={styles.luckyBox}><Text style={styles.luckyLabel}>Lucky Color</Text><Text style={styles.luckyValue}>{reading.lucky_color}</Text></View>
                       ) : null}
-                      {lucky.number ? (
-                        <View style={styles.luckyBox}><Text style={styles.luckyLabel}>Lucky number</Text><Text style={styles.luckyValue}>{lucky.number}</Text></View>
+                      {reading.lucky_number ? (
+                        <View style={styles.luckyBox}><Text style={styles.luckyLabel}>Lucky Number</Text><Text style={styles.luckyValue}>{reading.lucky_number}</Text></View>
                       ) : null}
+                    </View>
+                  ) : null}
+                  {followups.map((f, i) => (
+                    <View key={i} style={{ marginTop: space.md, paddingLeft: space.md, borderLeftWidth: 2, borderLeftColor: 'rgba(154,116,32,0.5)' }}>
+                      <Text style={[styles.scrollText, { fontStyle: 'italic', color: ink.soft }]}>“{f.question}”</Text>
+                      <Text style={styles.scrollText}>{f.text}</Text>
+                    </View>
+                  ))}
+                  {voiceFailed ? (
+                    <Text style={[styles.scrollText, { color: ink.soft, marginTop: space.sm }]}>Mittu ki awaaz abhi nahi aa paayi. Neeche Replay Voice dabaiye.</Text>
+                  ) : null}
+                  {canAsk ? (
+                    <View style={{ alignItems: 'center', marginTop: space.md }}>
+                      <MicButton listening={false} level={micLevel} onPress={toggleMic} size={56} label="Ask Mittu a follow-up" />
+                      <Text style={[styles.scrollText, { fontSize: 13, color: ink.soft, marginTop: -4 }]}>
+                        Mittu se aur poochiye 🎙️ ({followupsLeft} baaki)
+                      </Text>
                     </View>
                   ) : null}
                   <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.scrollBtn, { backgroundColor: scene.gold, borderColor: '#9A7420', marginTop: space.lg }]}>
                     <Ionicons name="sparkles" size={17} color="#1B1240" />
-                    <Text style={[styles.ghostText, { color: '#1B1240' }]}>Ek aur card</Text>
+                    <Text style={[styles.ghostText, { color: '#1B1240' }]}>Ek Aur Card</Text>
                   </Pressable>
-                  <Pressable accessibilityRole="button" onPress={() => void share(reading)} style={styles.scrollBtn}>
+                  <Pressable accessibilityRole="button" disabled={sharing === 'busy'} onPress={() => void share(reading)} style={styles.scrollBtn}>
                     <Ionicons name="share-social-outline" size={17} color={scene.goldSoft} />
-                    <Text style={styles.ghostText}>{copied ? 'Copy ho gaya!' : 'Share Karo'}</Text>
+                    <Text style={styles.ghostText}>{sharing === 'busy' ? 'Ban raha hai…' : sharing === 'copied' ? 'Save ho gaya!' : 'Share Story (9:16)'}</Text>
                   </Pressable>
-                  <Pressable accessibilityRole="button" onPress={() => void speak(reading)} style={styles.scrollBtn}>
-                    <Ionicons name="refresh" size={17} color={scene.goldSoft} />
-                    <Text style={styles.ghostText}>Replay Voice</Text>
+                  <Pressable accessibilityRole="button" onPress={() => void speakReading(reading)} style={styles.scrollBtn}>
+                    <Ionicons name="volume-high-outline" size={17} color={scene.goldSoft} />
+                    <Text style={styles.ghostText}>Replay Voice 🔊</Text>
                   </Pressable>
                   <ReadingFooter color={ink.soft} onReport={() => setReportId(reading.id)} />
                 </Parchment>
-              )}
-            </ScrollView>
+              ) : null}
+            </Panel>
           ) : null}
 
-          {phase === 'message' ? (
+          {phase === 'message' && message ? (
             <View style={[styles.messageWrap, { top: L.h * 0.18, paddingBottom: insets.bottom }]}>
               <View style={styles.textBox}>
-                <Text style={{ color: scene.text, fontSize: 16, lineHeight: 24 }}>{error ?? (result && 'text' in result ? result.text : '')}</Text>
-                {result?.kind === 'support' ? (
+                <Text style={{ color: scene.text, fontSize: 16, lineHeight: 24, fontFamily: fonts.ui }}>{message.text}</Text>
+                {message.helplines ? (
                   <View style={{ gap: space.sm, marginTop: space.md }}>
-                    {result.helplines.map((h) => (
+                    {message.helplines.map((h) => (
                       <Pressable key={h.phone} accessibilityRole="button" onPress={() => Linking.openURL(`tel:${h.phone}`)}
                         style={[styles.ghostBtn, { backgroundColor: scene.gold, borderColor: scene.gold }]}>
                         <Ionicons name="call" size={16} color="#1B1240" />
@@ -612,9 +741,10 @@ export default function ReadingScreen() {
               <Ionicons name="close" size={22} color={scene.goldSoft} />
             </Pressable>
             <View style={{ flexDirection: 'row', gap: space.sm }}>
-              {phase === 'intro' && !error && !still ? (
-                <Pressable accessibilityRole="button" onPress={skip} style={[styles.round, { width: undefined, paddingHorizontal: 14 }]}>
-                  <Text style={styles.ghostText}>Skip animation</Text>
+              {phase === 'intro' && card && !still ? (
+                <Pressable accessibilityRole="button" onPress={quickReveal} style={[styles.round, { width: undefined, paddingHorizontal: 14 }]}>
+                  <Ionicons name="flash" size={15} color={scene.saffron} />
+                  <Text style={styles.ghostText}> Quick Draw</Text>
                 </Pressable>
               ) : null}
               <Pressable accessibilityRole="button" accessibilityLabel={muted ? 'Unmute' : 'Mute'} hitSlop={10}
@@ -632,23 +762,26 @@ export default function ReadingScreen() {
 
 const styles = StyleSheet.create({
   topBar: { position: 'absolute', left: space.lg, right: space.lg, flexDirection: 'row', justifyContent: 'space-between', zIndex: 50 },
-  round: { height: 40, minWidth: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+  round: { height: 40, minWidth: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', flexDirection: 'row',
     backgroundColor: 'rgba(30,20,70,0.7)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)' },
   status: { position: 'absolute', left: 0, right: 0 },
-  caption: { fontFamily: serif, color: scene.goldSoft, textAlign: 'center', fontSize: 20, lineHeight: 27, fontWeight: '700', marginBottom: space.md,
+  caption: { fontFamily: fonts.display, color: scene.goldSoft, textAlign: 'center', fontSize: 17, lineHeight: 24, marginBottom: space.md,
     textShadowColor: 'rgba(212,175,55,0.55)', textShadowRadius: 10 },
-  scrollTitle: { fontFamily: serif, color: ink.text, textAlign: 'center', fontSize: 24, fontWeight: '700' },
-  scrollCard: { fontFamily: serif, color: ink.gold, textAlign: 'center', fontSize: 16, fontWeight: '700', letterSpacing: 0.4 },
+  scrollTitle: { fontFamily: fonts.display, color: ink.text, textAlign: 'center', fontSize: 23 },
+  section: { fontFamily: fonts.display, color: ink.gold, fontSize: 15, marginTop: space.md, letterSpacing: 0.4 },
+  scrollText: { color: ink.text, fontSize: 15.5, lineHeight: 23, fontFamily: fonts.ui, marginTop: 4 },
   luckyBox: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(154,116,32,0.5)', backgroundColor: 'rgba(255,248,225,0.45)' },
-  luckyLabel: { color: ink.soft, fontSize: 12, letterSpacing: 0.4 },
-  luckyValue: { fontFamily: serif, color: ink.text, fontSize: 17, fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  luckyLabel: { color: ink.soft, fontSize: 12, letterSpacing: 0.4, fontFamily: fonts.uiMedium },
+  luckyValue: { fontFamily: fonts.display, color: ink.text, fontSize: 17, marginTop: 2, textAlign: 'center' },
   scrollBtn: { height: 48, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: space.sm,
     backgroundColor: '#1E1650', borderWidth: 1, borderColor: 'rgba(212,175,55,0.6)' },
-  subs: { borderRadius: 16, paddingHorizontal: space.lg, paddingVertical: space.md, marginBottom: space.md,
+  subs: { borderRadius: 16, paddingHorizontal: space.lg, paddingVertical: space.md, marginBottom: space.sm,
     backgroundColor: 'rgba(14,9,40,0.92)', borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.75)', minHeight: 52, justifyContent: 'center' },
   textBox: { borderRadius: 16, padding: space.lg, backgroundColor: 'rgba(20,13,58,0.85)', borderWidth: 1, borderColor: 'rgba(212,175,55,0.35)' },
-  ghostBtn: { flex: 1, height: 48, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+  ghostBtn: { flex: 1, height: 46, borderRadius: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     borderWidth: 1, borderColor: 'rgba(212,175,55,0.6)' },
-  ghostText: { color: scene.goldSoft, fontSize: 15, fontWeight: '600' },
+  ghostText: { color: scene.goldSoft, fontSize: 15, fontFamily: fonts.uiBold },
+  pillBtn: { height: 46, paddingHorizontal: 18, borderRadius: 23, flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderColor: 'rgba(212,175,55,0.6)', backgroundColor: 'rgba(30,20,70,0.7)' },
   messageWrap: { position: 'absolute', left: space.lg, right: space.lg, zIndex: 40 },
 });

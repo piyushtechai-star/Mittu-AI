@@ -6,7 +6,7 @@ import { getReading, getReadings, type HistoryItem } from '@/api/mittu';
 import { ReadingFooter, ReportSheet } from '@/components/Report';
 import { Card, ErrorView, Header, Loading, Screen } from '@/components/ui';
 import { prettyDate } from '@/lib/format';
-import { playVoice, stopVoice } from '@/lib/sound';
+import { initSound, loadVoice, stopVoice } from '@/lib/sound';
 import { useLoad } from '@/lib/useLoad';
 import { colors, space, type } from '@/theme';
 
@@ -29,7 +29,9 @@ export default function History() {
     try {
       const r = await getReading(item.id);
       if (r.audio_url) {
-        await playVoice(r.audio_url, () => {}, () => setPlaying(null));
+        await initSound();
+        const clip = await loadVoice(r.audio_url);
+        clip.play(() => {}, () => { clip.stop(); setPlaying((p) => (p === item.id ? null : p)); });
         setPlaying(item.id);
       }
     } catch {} finally {
@@ -60,6 +62,12 @@ export default function History() {
               </View>
               {r.question ? <Text style={[type.subhead, { fontStyle: 'italic' }]}>“{r.question}”</Text> : null}
               <Text style={type.callout}>{r.text}</Text>
+              {(r.followups ?? []).map((f, i) => (
+                <View key={i} style={{ marginTop: space.sm, paddingLeft: space.md, borderLeftWidth: 2, borderLeftColor: colors.border, gap: 2 }}>
+                  <Text style={[type.subhead, { fontStyle: 'italic' }]}>“{f.question}”</Text>
+                  <Text style={type.callout}>{f.text}</Text>
+                </View>
+              ))}
               <ReadingFooter onReport={() => setReportId(r.id)} />
             </Card>
           ))}

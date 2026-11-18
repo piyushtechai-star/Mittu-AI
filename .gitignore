@@ -15,3 +15,6 @@ store/screenshots/raw/
 
 # Play AABs downloaded by tools/gcp/mittuai-build-aab.ps1
 builds/
+
+# Full-size Canva originals of the restyled cards (7 MB; also in the Canva account)
+store/card-art-src/

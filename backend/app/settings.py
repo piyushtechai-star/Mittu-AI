@@ -69,12 +69,25 @@ TTS_VOICE = os.environ.get("TTS_VOICE", "Puck")                   # Gemini prebu
 TTS_CLOUD_VOICE = os.environ.get("TTS_CLOUD_VOICE", "hi-IN-Chirp3-HD-Puck")  # backup: same voice family as Gemini Puck
 TTS_PITCH = float(os.environ.get("TTS_PITCH", "6.0"))
 TTS_RATE = float(os.environ.get("TTS_RATE", "1.1"))
+# Fast voice for the v2 reading flow (2026-11-17 meeting brief: clear Hindi/Hinglish TTS, +5.5 semitones, 1.1x,
+# 250 Hz high-pass; ready in ~1-2 s so the voice starts as the card flips). Cloud TTS with SSML word marks; falls back
+# to the Chirp3-HD voice (no pitch/marks), then to no audio (the app shows the text and offers a retry).
+# Neural2-B: fastest in the 2026-11-17 test (1.7-2.5 s for ~60 words), word marks supported. Wavenet-B/C also work.
+FAST_VOICE = os.environ.get("FAST_VOICE", "hi-IN-Neural2-B")
+FAST_PITCH = float(os.environ.get("FAST_PITCH", "5.5"))          # semitones
+FAST_RATE = float(os.environ.get("FAST_RATE", "1.1"))
+FAST_HIGHPASS_HZ = float(os.environ.get("FAST_HIGHPASS_HZ", "250"))
 VOICE_BUCKET = os.environ.get("VOICE_BUCKET", "mittuai-voice")    # PRIVATE bucket, lifecycle: delete after 7 days
 VOICE_URL_MINUTES = 60                                            # signed URL lifetime
 
 # Readings per user per day (guide 06: comes from /config, enforced here). Reports are capped too.
 READINGS_PER_DAY = int(os.environ.get("READINGS_PER_DAY", "5"))
 REPORTS_PER_DAY = 20
+# Follow-up questions to Mittu about a reading (user's choice 2026-11-17): 2 per card, 10 per user per day, separate
+# from the readings. Each one is a short Gemini reply + voice; crisis/off-topic checks run first for free.
+FOLLOWUPS_PER_READING = int(os.environ.get("FOLLOWUPS_PER_READING", "2"))
+FOLLOWUPS_PER_DAY = int(os.environ.get("FOLLOWUPS_PER_DAY", "10"))
+FOLLOWUP_MAX_OUTPUT_TOKENS = int(os.environ.get("FOLLOWUP_MAX_OUTPUT_TOKENS", "900"))   # thinking included; reply ~45 words
 
 # --- Razorpay (Ayush provides plan id + keys; while building use Artify's merchant) ---
 BILLING_MODE = os.environ.get("BILLING_MODE", "razorpay")   # "razorpay" | "fake" (local: no real payment)

@@ -1,33 +1,28 @@
-// Sound (guide 07): squawk, chime, wing flap, card shuffle and the ambient santoor loop are small files bundled in the
-// app (assets/sounds, made by tools/render-sounds.mjs). The santoor is the app's background music on every screen
-// (Home > Background music turns it off); it ducks while Mittu speaks and pauses while the mic listens or the app is
-// in the background. Mute and the music setting are remembered.
+// Sound (meeting brief 2026-11-17: clean audio policy). No background music or ambient loops any more: only Mittu's
+// voice and three tiny bundled effects: the "Mittu Mittu!" chirp (made with Mittu's own voice), a wing flutter and a
+// soft card flip. Mute is remembered on this phone.
+//
+// Mittu's voice clip is LOADED while the card animation runs (loadVoice) and only PLAYED at the reveal, so the voice
+// starts right away. Fixes "picks the card but doesn't speak": every failure is reported to the caller (which retries
+// with a fresh link, then shows a "suniye" button), and the phone's own voice is used only if it really has Hindi.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import * as Speech from 'expo-speech';
 
 const FILES = {
-  whoosh: require('../../assets/sounds/whoosh.wav'),
+  chirp: require('../../assets/sounds/chirp.mp3'),
   flap: require('../../assets/sounds/flap.wav'),
-  shuffle: require('../../assets/sounds/shuffle.wav'),
-  chime: require('../../assets/sounds/chime.wav'),
-  squawk: require('../../assets/sounds/squawk.wav'),
-  ambient: require('../../assets/sounds/ambient.wav'),
+  flip: require('../../assets/sounds/flip.wav'),
 };
-export type SoundName = Exclude<keyof typeof FILES, 'ambient'>;
+export type SoundName = keyof typeof FILES;
 
-const AMBIENT = 0.35;
-const DUCKED = 0.08;
 let muted = false;
-let ducked = false;
-let music = true;        // background music setting
-let paused = false;      // app in background, or the mic is listening
 let ready: Promise<void> | null = null;
-const players: Partial<Record<keyof typeof FILES, AudioPlayer>> = {};
-let voice: AudioPlayer | null = null;
+const players: Partial<Record<SoundName, AudioPlayer>> = {};
+let current: VoiceClip | null = null;
 const listeners = new Set<(m: boolean) => void>();
 
-function player(name: keyof typeof FILES) {
+function player(name: SoundName) {
   return (players[name] ??= createAudioPlayer(FILES[name]));
 }
 
@@ -35,7 +30,7 @@ export function initSound() {
   ready ??= (async () => {
     await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     muted = (await AsyncStorage.getItem('mittuai.muted').catch(() => null)) === '1';
-    music = (await AsyncStorage.getItem('mittuai.music').catch(() => null)) !== '0';
+    (Object.keys(FILES) as SoundName[]).forEach(player);   // load the effects now, so the first one isn't late
   })();
   return ready;
 }
@@ -49,8 +44,7 @@ export function onMuteChange(fn: (m: boolean) => void) {
 export function setMuted(m: boolean) {
   muted = m;
   AsyncStorage.setItem('mittuai.muted', m ? '1' : '0').catch(() => {});
-  if (players.ambient) players.ambient.volume = m ? 0 : ducked ? DUCKED : AMBIENT;
-  if (voice) voice.volume = m ? 0 : 1;
+  current?.setVolume(m ? 0 : 1);
   if (m) Speech.stop();
   listeners.forEach((fn) => fn(m));
 }
@@ -65,106 +59,97 @@ export function play(name: SoundName, volume = 1) {
   } catch {}
 }
 
-export function startAmbient() {
-  try {
-    const p = player('ambient');
-    p.loop = true;
-    p.volume = muted ? 0 : AMBIENT;
-    p.play();
-  } catch {}
+/** Plays the "Mittu Mittu!" chirp; resolves when it has (about) finished, so the voice can follow it. */
+export function chirp(): Promise<void> {
+  play('chirp', 1);
+  return new Promise((r) => setTimeout(r, muted ? 0 : 680));
 }
 
-export const isMusicOn = () => music;
+export type VoiceClip = {
+  duration: () => number;
+  /** Starts playback. onTime gets the position (s) ~15x a second; onEnd fires once (end, stop or error). */
+  play: (onTime: (t: number) => void, onEnd: () => void) => void;
+  pause: () => void;
+  stop: () => void;
+  setVolume: (v: number) => void;
+};
 
-/** Background music on every screen: starts the santoor loop if the setting is on. */
-export function startMusic() {
-  if (music && !paused) startAmbient();
-}
-
-export function setMusic(on: boolean) {
-  music = on;
-  AsyncStorage.setItem('mittuai.music', on ? '1' : '0').catch(() => {});
-  if (on) startMusic();
-  else stopAmbient();
-}
-
-/** Pauses the music without forgetting it (app in the background, mic listening); `false` resumes. */
-export function pauseMusic(on: boolean) {
-  paused = on;
-  if (on) {
-    try { players.ambient?.pause(); } catch {}
-  } else startMusic();
-}
-
-/** The reading scene always has the santoor; when it closes, keep it only if background music is on. */
-export function leaveScene() {
-  if (!music) stopAmbient();
-}
-
-export function stopAmbient() {
-  try {
-    players.ambient?.pause();
-    players.ambient?.seekTo(0).catch(() => {});
-  } catch {}
-}
-
-/** Lowers the ambient while Mittu speaks. */
-export function duck(on: boolean) {
-  ducked = on;
-  if (players.ambient) players.ambient.volume = muted ? 0 : on ? DUCKED : AMBIENT;
-}
-
-/** Plays Mittu's voice clip (signed URL). onTime gets the playback position (seconds) ~15x a second. */
-export async function playVoice(url: string, onTime: (t: number, duration: number) => void, onEnd: () => void): Promise<() => void> {
-  stopVoice();
+/** Loads a voice clip (signed URL) without playing it. Rejects if it can't load within `timeoutMs`. */
+export async function loadVoice(url: string, timeoutMs = 12_000): Promise<VoiceClip> {
   const p = createAudioPlayer({ uri: url });
-  voice = p;
-  p.volume = muted ? 0 : 1;
-  let done = false;
-  let timer: ReturnType<typeof setInterval> | undefined;
-  const finish = () => {
-    if (done) return;
-    done = true;
-    clearInterval(timer);
-    sub.remove();
-    if (voice === p) voice = null;
-    try { p.remove(); } catch {}
-    duck(false);
-    onEnd();
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    try { p.pause(); p.remove(); } catch {}
   };
-  const sub = p.addListener('playbackStatusUpdate', (s) => {
-    if (s.didJustFinish) finish();
-  });
-  await new Promise<void>((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error('voice timeout')), 20_000);
-    const check = setInterval(() => {
-      if (p.isLoaded) { clearTimeout(t); clearInterval(check); resolve(); }
-    }, 50);
-  }).catch((e) => { finish(); throw e; });
-  duck(true);
-  p.play();
-  timer = setInterval(() => onTime(p.currentTime, p.duration), 66);
-  return finish;
-}
-
-export function stopVoice() {
-  if (voice) {
-    try { voice.pause(); voice.remove(); } catch {}
-    voice = null;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => { clearInterval(check); reject(new Error('voice timeout')); }, timeoutMs);
+      const check = setInterval(() => {
+        if (p.isLoaded) { clearTimeout(t); clearInterval(check); resolve(); }
+      }, 50);
+    });
+  } catch (e) {
+    release();
+    throw e;
   }
-  Speech.stop();
-  duck(false);
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let sub: { remove: () => void } | undefined;
+  let ended = false;
+  let endFn: (() => void) | null = null;
+  const end = () => {
+    clearInterval(timer);
+    sub?.remove();
+    if (ended) return;
+    ended = true;
+    if (current === clip) current = null;
+    endFn?.();
+  };
+  const clip: VoiceClip = {
+    duration: () => p.duration || 0,
+    play: (onTime, onEnd) => {
+      if (released) return onEnd();
+      current?.stop();
+      current = clip;
+      ended = false;
+      endFn = onEnd;
+      p.volume = muted ? 0 : 1;
+      sub = p.addListener('playbackStatusUpdate', (s) => { if (s.didJustFinish) end(); });
+      p.seekTo(0).catch(() => {});
+      p.play();
+      timer = setInterval(() => onTime(p.currentTime), 66);
+    },
+    pause: () => { try { p.pause(); } catch {} end(); },
+    stop: () => { end(); release(); },
+    setVolume: (v) => { try { p.volume = v; } catch {} },
+  };
+  return clip;
 }
 
-/** No clip (voice service failed): the phone's own Hindi voice, pitched up, so Mittu still speaks. */
+/** Stops whatever Mittu is saying (voice clip or phone voice). */
+export function stopVoice() {
+  current?.pause();
+  Speech.stop();
+}
+
+let hindiVoice: Promise<boolean> | null = null;
+/** True if this phone has a Hindi text-to-speech voice (many Android phones don't: speaking would be silent). */
+export function phoneHasHindi() {
+  hindiVoice ??= Speech.getAvailableVoicesAsync()
+    .then((v) => v.some((x) => /^hi([-_]|$)/i.test(x.language)))
+    .catch(() => false);
+  return hindiVoice;
+}
+
+/** Last resort when no clip could be played: the phone's own Hindi voice, pitched up. */
 export function speakOnDevice(text: string, onStart: () => void, onEnd: () => void) {
   if (muted) {
     onEnd();
     return;
   }
-  duck(true);
   Speech.speak(text, {
     language: 'hi-IN', pitch: 1.6, rate: 1.05, onStart,
-    onDone: () => { duck(false); onEnd(); }, onStopped: () => { duck(false); onEnd(); }, onError: () => { duck(false); onEnd(); },
+    onDone: onEnd, onStopped: onEnd, onError: onEnd,
   });
 }

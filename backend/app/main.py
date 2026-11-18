@@ -4,7 +4,7 @@ import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import auth, billing, invoices, media, reading, settings, users
+from . import auth, billing, invoices, media, reading, settings, story, users
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,7 +26,7 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-for module in (auth, users, billing, invoices, reading, media):
+for module in (auth, users, billing, invoices, reading, story, media):
     app.include_router(module.router)
 
 
