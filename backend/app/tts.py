@@ -158,7 +158,18 @@ def suspect_repeats(parts: list[str], seconds: list[float]) -> list[int]:
 
 
 def _gemini_tts(text: str) -> tuple[bytes, list[float], str]:
+    pcm, times = _gemini_joined(text)
+    return _mp3(pcm, speed=SPEED), times, "mp3"
+
+
+def _gemini_joined(text: str) -> tuple[bytes, list[float]]:
+    """Mittu's acted Gemini voice as one 24 kHz PCM clip (parts made in parallel, joined with short gaps) and the
+    start time of every word as heard (after the 1.1x speed-up)."""
     from concurrent.futures import ThreadPoolExecutor
+
+    from .ai import client
+    client()   # create the shared Gemini client once, before the threads (racing threads made extra clients that
+    #            were cleaned up mid-request: "Cannot send a request, as the client has been closed")
     parts = split_parts(text)
     secs = lambda pcm: len(pcm) / 2 / GEMINI_RATE  # noqa: E731
     with ThreadPoolExecutor(max_workers=len(parts)) as pool:
@@ -174,7 +185,7 @@ def _gemini_tts(text: str) -> tuple[bytes, list[float], str]:
         starts.append(pos)
         lengths.append(len(pcm) / 2 / GEMINI_RATE / SPEED)
         pos += lengths[-1] + len(GAP) / 2 / GEMINI_RATE / SPEED
-    return _mp3(GAP.join(pcms), speed=SPEED), _word_times(parts, starts, lengths), "mp3"
+    return GAP.join(pcms), _word_times(parts, starts, lengths)
 
 
 def _silent_wav(seconds: float, rate: int = 8000) -> bytes:
@@ -278,3 +289,31 @@ def fast_voice(text: str) -> tuple[bytes, list[float] | None, str, str]:
         pcm, rate, times = _fast_chirp(text)
     pcm, envelope = parrot_dsp(pcm, rate)
     return _mp3(pcm, rate=rate), times, envelope, "mp3"
+
+
+def envelope_of(pcm: bytes, rate: float) -> str:
+    """Loudness per 1/ENVELOPE_FPS s (one digit 0-9), for the beak and the waveform. `rate` is the playback rate
+    (for the sped-up Gemini clip: GEMINI_RATE * SPEED), so frames line up with what is heard."""
+    import numpy as np
+    y = np.frombuffer(pcm, dtype="<i2").astype(np.float64)
+    frame = max(1, int(rate // ENVELOPE_FPS))
+    n = y.size // frame
+    if not n:
+        return ""
+    rms = np.sqrt(np.mean(y[: n * frame].reshape(n, frame) ** 2, axis=1))
+    ref = float(np.percentile(rms, 95)) or 1.0
+    return "".join(map(str, np.clip(np.round(rms / ref * 9), 0, 9).astype(int)))
+
+
+def mittu_voice(text: str) -> tuple[bytes, list[float] | None, str, str]:
+    """Mittu's voice for v2 readings and follow-up replies: (audio, word start times, envelope, extension).
+    READING_VOICE "gemini" (the user's choice 2026-11-18: the old acted Puck voice) falls back to the fast Cloud TTS
+    voice if Gemini fails or is over its quota, so Mittu always speaks. "fast" uses the fast voice only."""
+    if settings.TTS_PROVIDER == "fake" or settings.READING_VOICE != "gemini":
+        return fast_voice(text)
+    try:
+        pcm, times = _gemini_joined(text)
+        return _mp3(pcm, speed=SPEED), times, envelope_of(pcm, GEMINI_RATE * SPEED), "mp3"
+    except Exception:  # noqa: BLE001
+        log.exception("Gemini voice failed; using the fast voice")
+        return fast_voice(text)

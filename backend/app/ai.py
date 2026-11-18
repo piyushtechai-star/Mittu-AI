@@ -182,14 +182,42 @@ def _generate_json(system: str, contents: str, max_tokens: int, schema: dict) ->
              "thinking": (u and u.thoughts_token_count) or 0, "model": response.model_version or settings.GEMINI_MODEL}
     if stop in SAFETY_STOPS:
         return None, {**usage, "safetyFallback": True}
+    raw = (response.text or "") if stop != "EMPTY" else ""
     try:
-        data = json.loads(response.text or "")
+        data = json.loads(raw)
         if not isinstance(data, dict):
             raise ValueError("not an object")
     except Exception as err:  # noqa: BLE001
-        log.error("Gemini JSON unusable (%s, stop %s)", err, stop)
-        raise HTTPException(503, TRY_AGAIN) from err
+        # Cut off mid-JSON (stop MAX_TOKENS, seen live 2026-11-18): keep every field that did arrive complete.
+        data = salvage_json(raw)
+        log.error("Gemini JSON unusable (%s, stop %s); salvaged fields: %s", err, stop, sorted(data))
+        if not data:
+            raise HTTPException(503, TRY_AGAIN) from err
     return data, usage
+
+
+_FIELD = re.compile(r'"(\w+)"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+
+def salvage_json(raw: str) -> dict:
+    """The complete "key": "string" pairs from a truncated JSON object (a field cut off mid-string is dropped)."""
+    import json
+    out = {}
+    for m in _FIELD.finditer(raw or ""):
+        try:
+            out[m.group(1)] = json.loads(f'"{m.group(2)}"')
+        except Exception:  # noqa: BLE001
+            continue
+    return out
+
+
+def _lucky_from_speech(speech: str) -> tuple[str, str]:
+    """"...Lucky color, aasmaani neela... lucky number, saat!" → ("Aasmaani neela", "saat")."""
+    def pick(pattern: str) -> str:
+        m = re.search(pattern, speech, re.I)
+        v = m.group(1).strip().strip(".!,") if m else ""
+        return v[:1].upper() + v[1:] if v else ""
+    return (pick(r"lucky\s*colou?r\s*[,:\-–]?\s*([^.!?…,]+)"), pick(r"lucky\s*number\s*[,:\-–]?\s*([^.!?…,]+)"))
 
 
 def _short(text: str, max_words: int) -> str:
@@ -208,7 +236,7 @@ def reading_v2(card_id: int, orientation: str, name: str, category: str, questio
     _, en, hi_roman, _ = CARDS[card_id]
     if settings.AI_PROVIDER == "fake":
         who = f"{name}, " if name else ""
-        speech = (f"Mittu Mittu! Suno suno... {who}Mittu ne nikaala hai {hi_roman} ka card, {en}"
+        speech = (f"Kuurr! Suno suno... {who}Mittu ne nikaala hai {hi_roman} ka card, {en}"
                   f"{', ulta' if orientation == 'reversed' else ''}! Mittu ko dikh raha hai ki nayi roshni ka sanket hai. "
                   "Jo mehnat aap kar rahe ho, uska phal dheere dheere milega. Bas aaj ek chhota kadam uthaiye, "
                   "aur apne aap pe bharosa rakhiye. Mittu ka aashirwaad hai! Lucky color, aasmaani neela... lucky number, saat! (Test mode)")
@@ -219,18 +247,23 @@ def reading_v2(card_id: int, orientation: str, name: str, category: str, questio
         "speech": {"type": "STRING"}, "sandesh": {"type": "STRING"}, "salah": {"type": "STRING"},
         "lucky_color": {"type": "STRING"}, "lucky_number": {"type": "STRING"}},
         "required": ["speech", "sandesh", "salah", "lucky_color", "lucky_number"]}
-    data, usage = _generate_json(MITTU_SYSTEM_V2, _user_message(card_id, orientation, name, category, question, birth_line),
-                                 settings.READING_MAX_OUTPUT_TOKENS, schema)
+    msg = _user_message(card_id, orientation, name, category, question, birth_line)
+    data, usage = _generate_json(MITTU_SYSTEM_V2, msg, settings.READING_V2_MAX_OUTPUT_TOKENS, schema)
+    if data is not None and len(clean(str(data.get("speech") or "")).split()) < 25:
+        log.warning("v2 reading had no usable speech; one retry")   # e.g. cut off before the speech was complete
+        data, usage = _generate_json(MITTU_SYSTEM_V2, msg, settings.READING_V2_MAX_OUTPUT_TOKENS, schema)
     if data is None:   # safety filter: a gentle fixed reading, so the user still gets their card
-        speech = safe_fallback(card_id).replace("Kuurr!", "Mittu Mittu!")
+        speech = safe_fallback(card_id)
         return {"speech": speech, "sandesh": "Abhi dheeraj aur bharose ka samay hai.",
                 "salah": "Aaj kisi apne se dil ki baat kijiye.", "lucky_color": "Hara", "lucky_number": "5"}, usage
     speech = clean(str(data.get("speech") or ""))
     if len(speech.split()) < 25:
         log.error("Gemini v2 reading too short (%d words)", len(speech.split()))
         raise HTTPException(503, TRY_AGAIN)
+    color, number = _lucky_from_speech(speech)
     return {"speech": speech, "sandesh": _short(data.get("sandesh"), 45), "salah": _short(data.get("salah"), 28),
-            "lucky_color": _short(data.get("lucky_color"), 4), "lucky_number": _lucky_number(data.get("lucky_number"))}, usage
+            "lucky_color": _short(data.get("lucky_color") or color, 4),
+            "lucky_number": _lucky_number(data.get("lucky_number")) or number}, usage
 
 
 def followup_reply(card_id: int, orientation: str, name: str, category: str, question: str, reading: str,

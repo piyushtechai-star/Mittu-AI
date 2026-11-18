@@ -28,7 +28,7 @@ def test_draw_is_instant_card_then_speak_returns_structured_reading():
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["kind"] == "reading" and d["card"]["id"] == card["card"]["id"] and d["orientation"] == card["orientation"]
-    assert d["text"].count("Mittu Mittu") == 1 and "Riya" in d["text"]
+    assert d["text"].startswith("Kuurr! Suno suno") and "Riya" in d["text"]   # the original Mittu style
     assert d["sandesh"] and d["salah"] and d["lucky_color"] and d["lucky_number"].isdigit()
     assert d["audio_url"] and len(d["word_times"]) == len(d["text"].split()) and set(d["envelope"]) <= set("0123456789")
     assert d["followups"] == []
@@ -70,7 +70,7 @@ def test_voice_failure_still_returns_the_text(monkeypatch):
 
     def boom(text):
         raise RuntimeError("tts down")
-    monkeypatch.setattr(tts, "fast_voice", boom)
+    monkeypatch.setattr(tts, "mittu_voice", boom)
     d = c.post(f"/v2/reading/{card['id']}/speak", headers=h).json()
     assert d["text"] and d["audio_url"] is None and d["envelope"] is None
 
@@ -169,3 +169,28 @@ def test_story_image_is_a_9_16_png_of_my_reading_only():
     onboard(h2, "Aman")
     assert c.get(f"/v2/readings/{card['id']}/story.png", headers=h2).status_code == 404
     assert c.get(f"/v2/readings/{card['id']}/story.png").status_code == 401
+
+
+def test_mittu_voice_uses_gemini_and_falls_back_to_fast(monkeypatch):
+    monkeypatch.setattr(settings, "TTS_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "READING_VOICE", "gemini")
+    import numpy as np
+    pcm = (np.sin(np.arange(24_000) / 10) * 8000).astype("<i2").tobytes()
+    monkeypatch.setattr(tts, "_gemini_joined", lambda text: (pcm, [0.0, 0.4]))
+    audio, times, env, ext = tts.mittu_voice("Mittu Mittu! hello")
+    assert ext == "mp3" and times == [0.0, 0.4] and env and set(env) <= set("0123456789")
+
+    def boom(text):
+        raise RuntimeError("quota")
+    monkeypatch.setattr(tts, "_gemini_joined", boom)
+    monkeypatch.setattr(tts, "fast_voice", lambda text: (b"fast", None, "5", "mp3"))
+    assert tts.mittu_voice("x")[0] == b"fast"
+
+
+def test_cut_off_json_is_salvaged_and_lucky_comes_from_the_speech():
+    raw = ('{"speech": "Kuurr! Suno suno... Mittu ne nikaala hai Taara ka card! Umeed ka sanket hai. Lucky color, '
+           'aasmaani neela... lucky number, saat!", "sandesh": "Nayi roshni", "salah": "Aaj ek chhota kad')
+    got = ai.salvage_json(raw)
+    assert got["speech"].startswith("Kuurr!") and got["sandesh"] == "Nayi roshni" and "salah" not in got
+    assert ai._lucky_from_speech(got["speech"]) == ("Aasmaani neela", "Saat")
+    assert ai.salvage_json('{"spee') == {}

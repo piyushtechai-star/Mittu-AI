@@ -128,7 +128,7 @@ def report(body: ReportBody, uid: str = CurrentUid):
 # The old POST /reading made the text AND the acted Gemini voice in one call (8-15 s), and the app's animation waited
 # for it: Mittu "hung" over the cards, and when the voice failed the phone's own voice was often silent. v2 splits it:
 #   POST /v2/reading             → free checks, plan, day's count, the BACKEND draws the card (instant): {kind: "card"}
-#   POST /v2/reading/{id}/speak  → Gemini text (JSON: speech, sandesh, salah, lucky) + fast voice (~1-2 s). Idempotent:
+#   POST /v2/reading/{id}/speak  → Gemini text (JSON: speech, sandesh, salah, lucky) + Mittu's voice. Idempotent:
 #                                  a second call returns what was made, never pays again. On failure the day's count
 #                                  is given back.
 #   POST /v2/reading/{id}/followup → a short spoken reply about the same card (2 per card, 10 per day).
@@ -199,7 +199,7 @@ def speak_card(rid: str, request: Request, uid: str = CurrentUid):
 
     audio_path, word_times, envelope = None, None, None
     try:
-        audio, word_times, envelope, ext = tts.fast_voice(out["speech"])
+        audio, word_times, envelope, ext = tts.mittu_voice(out["speech"])
         audio_path = f"readings/{uid}/{rid}.{ext}"
         media.save_voice(audio_path, audio)
     except Exception:  # noqa: BLE001 - the reading still counts; the app shows the text and can retry the voice
@@ -259,7 +259,7 @@ def followup(rid: str, body: FollowupBody, request: Request, uid: str = CurrentU
     n = len(doc.get("followups", [])) + 1
     audio_path, word_times, envelope = None, None, None
     try:
-        audio, word_times, envelope, ext = tts.fast_voice(text)
+        audio, word_times, envelope, ext = tts.mittu_voice(text)
         audio_path = f"readings/{uid}/{rid}-f{n}.{ext}"
         media.save_voice(audio_path, audio)
     except Exception:  # noqa: BLE001

@@ -58,6 +58,8 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "global")
 GEMINI_THINKING = os.environ.get("GEMINI_THINKING", "low")       # "" = model default
 READING_MAX_OUTPUT_TOKENS = int(os.environ.get("READING_MAX_OUTPUT_TOKENS", "1500"))  # thinking included; reply ~150
+# v2 JSON reading (speech + sandesh + salah + lucky) is ~2x the text; 1500 ran out mid-JSON live (2026-11-18).
+READING_V2_MAX_OUTPUT_TOKENS = int(os.environ.get("READING_V2_MAX_OUTPUT_TOKENS", "4000"))
 QUESTION_MAX_CHARS = 300
 
 # --- Mittu's voice (app/tts.py) ---
@@ -72,6 +74,9 @@ TTS_RATE = float(os.environ.get("TTS_RATE", "1.1"))
 # Fast voice for the v2 reading flow (2026-11-17 meeting brief: clear Hindi/Hinglish TTS, +5.5 semitones, 1.1x,
 # 250 Hz high-pass; ready in ~1-2 s so the voice starts as the card flips). Cloud TTS with SSML word marks; falls back
 # to the Chirp3-HD voice (no pitch/marks), then to no audio (the app shows the text and offers a retry).
+# Voice for v2 readings and follow-ups: "gemini" = the acted Gemini Puck voice above (user's choice 2026-11-18, after
+# hearing the fast voice), falling back to the fast voice; "fast" = the fast voice only.
+READING_VOICE = os.environ.get("READING_VOICE", "gemini")
 # Neural2-B: fastest in the 2026-11-17 test (1.7-2.5 s for ~60 words), word marks supported. Wavenet-B/C also work.
 FAST_VOICE = os.environ.get("FAST_VOICE", "hi-IN-Neural2-B")
 FAST_PITCH = float(os.environ.get("FAST_PITCH", "5.5"))          # semitones

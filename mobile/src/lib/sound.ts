@@ -1,6 +1,6 @@
 // Sound (meeting brief 2026-11-17: clean audio policy). No background music or ambient loops any more: only Mittu's
-// voice and three tiny bundled effects: the "Mittu Mittu!" chirp (made with Mittu's own voice), a wing flutter and a
-// soft card flip. Mute is remembered on this phone.
+// voice and three tiny bundled effects: Mittu's squawk ("Kuurr!", the original pre-meeting sound the user asked to
+// keep, 2026-11-18), a wing flutter and a soft card flip. Mute is remembered on this phone.
 //
 // Mittu's voice clip is LOADED while the card animation runs (loadVoice) and only PLAYED at the reveal, so the voice
 // starts right away. Fixes "picks the card but doesn't speak": every failure is reported to the caller (which retries
@@ -10,11 +10,22 @@ import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-aud
 import * as Speech from 'expo-speech';
 
 const FILES = {
-  chirp: require('../../assets/sounds/chirp.mp3'),
+  squawk: require('../../assets/sounds/squawk.wav'),
   flap: require('../../assets/sounds/flap.wav'),
   flip: require('../../assets/sounds/flip.wav'),
+  // Mittu's waiting lines, recorded once in his own Gemini Puck voice (same style + 1.1x speed as the readings) and
+  // bundled, so they play instantly and cost no TTS quota (user request 2026-11-18).
+  think_dhoond: require('../../assets/sounds/think_dhoond.mp3'),
+  think_soch: require('../../assets/sounds/think_soch.mp3'),
+  think_sandesh: require('../../assets/sounds/think_sandesh.mp3'),
+  think_taare: require('../../assets/sounds/think_taare.mp3'),
+  think_pal: require('../../assets/sounds/think_pal.mp3'),
 };
 export type SoundName = keyof typeof FILES;
+export type LineName = Extract<SoundName, `think_${string}`>;
+const LINE_SECONDS: Record<LineName, number> = {
+  think_dhoond: 3.9, think_soch: 3.0, think_sandesh: 3.7, think_taare: 3.4, think_pal: 2.7,
+};
 
 let muted = false;
 let ready: Promise<void> | null = null;
@@ -45,7 +56,7 @@ export function setMuted(m: boolean) {
   muted = m;
   AsyncStorage.setItem('mittuai.muted', m ? '1' : '0').catch(() => {});
   current?.setVolume(m ? 0 : 1);
-  if (m) Speech.stop();
+  if (m) { Speech.stop(); stopLine(); }
   listeners.forEach((fn) => fn(m));
 }
 
@@ -59,10 +70,36 @@ export function play(name: SoundName, volume = 1) {
   } catch {}
 }
 
-/** Plays the "Mittu Mittu!" chirp; resolves when it has (about) finished, so the voice can follow it. */
+/** Mittu's squawk ("Kuurr!"); resolves when it has (about) finished, so the voice can follow it (as before the
+ *  meeting: squawk, then the reading). */
 export function chirp(): Promise<void> {
-  play('chirp', 1);
-  return new Promise((r) => setTimeout(r, muted ? 0 : 680));
+  play('squawk', 0.9);
+  return new Promise((r) => setTimeout(r, muted ? 0 : 650));
+}
+
+let lineEnds = 0;   // Date.now() when the waiting line now playing ends
+let lineNow: LineName | null = null;
+
+/** Mittu says one of his waiting lines ("Card dhoond raha hai…"). Returns its length in seconds (0 when muted). */
+export function sayLine(name: LineName): number {
+  if (muted) return 0;
+  stopLine();
+  play(name, 1);
+  lineNow = name;
+  lineEnds = Date.now() + LINE_SECONDS[name] * 1000;
+  return LINE_SECONDS[name];
+}
+
+/** Resolves when the waiting line now playing has finished (at most `maxMs`), so the reading never talks over it. */
+export function lineFinished(maxMs = 4000): Promise<void> {
+  const left = Math.min(maxMs, lineEnds - Date.now());
+  return new Promise((r) => setTimeout(r, Math.max(0, left)));
+}
+
+export function stopLine() {
+  if (lineNow) try { players[lineNow]?.pause(); } catch {}
+  lineNow = null;
+  lineEnds = 0;
 }
 
 export type VoiceClip = {

@@ -1,5 +1,5 @@
 // The reading scene (meeting brief 2026-11-17): a strict ~5 s cinematic, then Mittu speaks, and you can talk back.
-//   0-1.2 s   "Mittu Mittu!" chirp, wings spread, he flies an arc dropping green feathers
+//   0-1.2 s   Mittu's squawk, wings spread, he flies an arc dropping green feathers
 //   1.2-2.5 s a semicircle fan of 7 face-down cards opens
 //   2.5-3.8 s he hovers, dives and takes one card with his beak
 //   3.8-5.0 s the other cards dissolve, the chosen card floats to centre, flips with a gold burst, Mittu lands beside it
@@ -28,7 +28,8 @@ import { FlipCard, roman } from '@/components/TarotCard';
 import { track } from '@/lib/integrations';
 import { currentReading, getSkipAnimation } from '@/lib/nav';
 import {
-  chirp, initSound, isMuted, loadVoice, onMuteChange, phoneHasHindi, play, setMuted, speakOnDevice, stopVoice, type VoiceClip,
+  chirp, initSound, isMuted, lineFinished, loadVoice, onMuteChange, phoneHasHindi, play, sayLine, setMuted, speakOnDevice,
+  stopLine, stopVoice, type LineName, type VoiceClip,
 } from '@/lib/sound';
 import { shareStory } from '@/lib/story';
 import { listen, voiceSupported } from '@/lib/voice';
@@ -153,6 +154,16 @@ function Panel({ scroll, top, bottom, children }: { scroll: boolean; top: number
   );
 }
 
+// While Mittu's acted voice is being made (it can take ~10-15 s), he says these lines in his own voice (bundled clips)
+// and the caption follows. After one round the captions keep changing silently, so he doesn't repeat himself.
+const THINKING: { text: string; line: LineName }[] = [
+  { text: 'Mittu Mittu! Soch raha hoon…', line: 'think_soch' },
+  { text: 'Card ka sandesh padh raha hoon…', line: 'think_sandesh' },
+  { text: 'Taaron se baat ho rahi hai… ✨', line: 'think_taare' },
+  { text: 'Bas ek pal! Ab Mittu bolega…', line: 'think_pal' },
+];
+const LINE_DELAY_MS = 500;   // a voice that is already loaded starts without a waiting line in front of it
+
 const estimateTimes = (words: string[], duration: number) => {
   const weight = words.map((w) => w.replace(/[^\p{L}\p{N}]/gu, '').length + 2 + (/[.!?…]$/.test(w) ? 6 : /[,]$/.test(w) ? 3 : 0));
   const total = weight.reduce((a, b) => a + b, 0) || 1;
@@ -180,6 +191,7 @@ export default function ReadingScreen() {
   const [talking, setTalking] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [thinking, setThinking] = useState(false);
+  const [thinkStep, setThinkStep] = useState(0);
   const [words, setWords] = useState<string[]>([]);
   const [wordIdx, setWordIdx] = useState(-1);
   const [useLevel, setUseLevel] = useState(false);
@@ -213,13 +225,31 @@ export default function ReadingScreen() {
   const stopListening = useRef<(() => void) | null>(null);
   const completed = useRef(false);
   const face = useCallback((d: 1 | -1) => { facingRef.current = d; setFacing(d); }, []);
+  const linesOn = useRef(false);
+  useEffect(() => {
+    if (!thinking) return;
+    setThinkStep(0);
+    linesOn.current = true;
+    let k = 0, t: ReturnType<typeof setTimeout>;
+    const next = () => {
+      if (!linesOn.current) return;   // the voice is ready: no new line
+      setThinkStep(k);
+      const secs = k < THINKING.length ? sayLine(THINKING[k].line) : 0;
+      k++;
+      t = setTimeout(next, Math.max(3000, secs * 1000 + 900));
+    };
+    t = setTimeout(next, LINE_DELAY_MS);
+    return () => { linesOn.current = false; clearTimeout(t); stopLine(); };
+  }, [thinking]);
 
   const wait = useCallback((ms: number) => new Promise<void>((resolve, reject) => {
     run.current.timers.push(setTimeout(() => (run.current.cancelled ? reject(CANCEL) : resolve()), ms));
   }), []);
   const flaps = (every: number | null) => {
     clearInterval(run.current.flaps);
-    if (every) run.current.flaps = setInterval(() => play('flap', 0.35), every);
+    // One soft flutter when Mittu takes off / starts hovering. (It used to repeat every 150-220 ms while he flew,
+    // which sounded like hammering: user feedback 2026-11-18.)
+    if (every) play('flap', 0.18);
   };
   const flyTo = (x: number, y: number, ms: number) => {
     if (Math.abs(x - mx.value) > 6) face(x < mx.value ? -1 : 1);
@@ -254,11 +284,13 @@ export default function ReadingScreen() {
       const url = await opts.refetch().catch(() => null);
       if (url) clip = await loadVoice(url).catch(() => null);
     }
+    linesOn.current = false;   // let Mittu finish the waiting line he is saying, then the reading
+    await lineFinished();
     setThinking(false);
     setSpeaking(true);
     setMode('talk');
     setTalking(true);
-    await chirp();   // every reading starts with Mittu's "Mittu Mittu!"
+    await chirp();   // Mittu's squawk, then the reading (as in the original version)
     if (clip) {
       const env = s.envelope ?? '';
       let times = s.word_times;
@@ -315,6 +347,7 @@ export default function ReadingScreen() {
     run.current.cancelled = true;
     run.current.timers.forEach(clearTimeout);
     clearInterval(run.current.flaps);
+    stopLine();
     setMessage(m);
     setPhase('message');
     setPerched(false);
@@ -372,8 +405,9 @@ export default function ReadingScreen() {
     if (!L || !ticket) return;
     const R = run.current;
     const fan = L.fan;
-    // 0-1.2 s: chirp, wings spread, an arc across the sky with falling feathers
-    void chirp();
+    // 0-1.2 s: squawk, wings spread, an arc across the sky with falling feathers; then "Ruko ruko, Mittu aapka card
+    // dhoond raha hai!" in his voice (ends before the flip at ~5 s)
+    void chirp().then(() => { if (!R.cancelled) sayLine('think_dhoond'); });
     setMode('fly');
     flaps(150);
     dim.value = withTiming(1, { duration: 600 });
@@ -435,7 +469,7 @@ export default function ReadingScreen() {
     k.rot.value = withTiming(0, { duration: 450 });
     k.scale.value = withTiming(1, { duration: 550, easing: Easing.out(Easing.cubic) });
     await wait(560);
-    play('flip', 0.9);
+    play('flip', 0.6);
     k.flip.value = withTiming(180, { duration: 460, easing: Easing.bezier(0.45, 0, 0.2, 1) });
     await wait(230);
     setBurst(Date.now());
@@ -449,7 +483,7 @@ export default function ReadingScreen() {
     clearInterval(R.flaps);
     face(-1);
     setMode('land');
-    play('flap', 0.3);
+    play('flap', 0.15);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [L, wait, face, ticket]);
 
@@ -473,6 +507,7 @@ export default function ReadingScreen() {
       stopSpeech.current?.();
       stopListening.current?.();
       stopVoice();
+      stopLine();
       preload.current?.then((c) => c.stop()).catch(() => {});
       off();
     };
@@ -501,7 +536,7 @@ export default function ReadingScreen() {
         track('reading_skipped_animation', { reason: reducedMotion ? 'reduced_motion' : 'quick_draw' });
         setSlot(chosen);
         placeFinal(chosen);
-        play('flip', 0.8);
+        play('flip', 0.6);
         setBurst(Date.now());
         return reveal();
       }
@@ -531,7 +566,7 @@ export default function ReadingScreen() {
     setFeathers([]);
     setSlot(chosenRef.current);
     placeFinal(chosenRef.current);
-    play('flip', 0.7);
+    play('flip', 0.6);
     setBurst(Date.now());
     void reveal();
   }
@@ -641,7 +676,7 @@ export default function ReadingScreen() {
                 </View>
               ) : thinking ? (
                 <View style={[styles.subs, { alignItems: 'center' }]}>
-                  <Text style={{ color: scene.goldSoft, fontFamily: fonts.uiMedium, fontSize: 16 }}>Mittu Mittu! Soch raha hoon…</Text>
+                  <Text style={{ color: scene.goldSoft, fontFamily: fonts.uiMedium, fontSize: 16, textAlign: 'center' }}>{THINKING[thinkStep % THINKING.length].text}</Text>
                 </View>
               ) : speaking ? (
                 <View style={{ alignItems: 'center' }}>
